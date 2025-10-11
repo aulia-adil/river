@@ -68,6 +68,12 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         If True, disable poor attributes to reduce memory usage.
     merit_preprune
         If True, enable merit-based tree pre-pruning.
+    split_callback
+        Optional callback function that will be invoked whenever a node split occurs.
+        The callback receives information about the split: the original leaf node being split,
+        the new split node that replaced it, and the new child leaf nodes. This can be used
+        to implement distributed training where split information is published to external
+        systems like Kafka for consumption by inference processes.
 
     Notes
     -----
@@ -146,6 +152,7 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         stop_mem_management: bool = False,
         remove_poor_attrs: bool = False,
         merit_preprune: bool = True,
+        split_callback: callable | None = None,
     ):
         super().__init__(
             max_depth=max_depth,
@@ -173,6 +180,7 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
 
         self.min_branch_fraction = min_branch_fraction
         self.max_share_to_split = max_share_to_split
+        self.split_callback = split_callback
 
         # To keep track of the observed classes
         self.classes: set = set()

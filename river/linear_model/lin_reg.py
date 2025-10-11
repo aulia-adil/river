@@ -172,3 +172,5 @@ class LinearRegression(linear_model.base.GLM, base.MiniBatchRegressor):
         )
 
         return table
+    def JOJO(self):
+        print("JOJO")
