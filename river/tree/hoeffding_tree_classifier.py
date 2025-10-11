@@ -312,6 +312,24 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                     else:
                         parent.children[parent_branch] = new_split
 
+                    # Invoke the split callback if provided
+                    if self.split_callback is not None:
+                        try:
+                            self.split_callback({
+                                'split_type': 'node_split',
+                                'original_leaf': leaf,
+                                'new_split_node': new_split,
+                                'new_leaves': leaves,
+                                'split_feature': split_decision.feature,
+                                'split_decision': split_decision,
+                                'parent': parent,
+                                'parent_branch': parent_branch,
+                                'tree_id': id(self)  # Unique identifier for this tree instance
+                            })
+                        except Exception as e:
+                            # Don't let callback errors break the training process
+                            print(f"Warning: split_callback failed with error: {e}")
+
                 # Manage memory
                 self._enforce_size_limit()
 
