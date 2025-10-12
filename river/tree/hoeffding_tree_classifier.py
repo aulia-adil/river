@@ -261,14 +261,29 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         kwargs
             Other parameters passed to the new branch.
         """
-        if not leaf.observed_class_distribution_is_pure():  # type: ignore
+        print(f"\n   🔍 SPLIT ANALYSIS: Analyzing leaf for potential split")
+        print(f"      Leaf stats: {getattr(leaf, 'stats', {})}")
+        
+        is_pure = leaf.observed_class_distribution_is_pure()
+        print(f"      Class distribution is pure: {is_pure}")
+        
+        if not is_pure:  # type: ignore
             split_criterion = self._new_split_criterion()
+            print(f"      Split criterion: {type(split_criterion).__name__}")
 
             best_split_suggestions = leaf.best_split_suggestions(split_criterion, self)
             best_split_suggestions.sort()
+            
+            print(f"      Found {len(best_split_suggestions)} split suggestions:")
+            for i, suggestion in enumerate(best_split_suggestions):
+                feature = getattr(suggestion, 'feature', 'unknown')
+                merit = getattr(suggestion, 'merit', 'unknown')
+                print(f"        {i+1}. Feature: {feature}, Merit: {merit}")
+            
             should_split = False
             if len(best_split_suggestions) < 2:
                 should_split = len(best_split_suggestions) > 0
+                print(f"      Only {len(best_split_suggestions)} suggestion(s), split decision: {should_split}")
             else:
                 hoeffding_bound = self._hoeffding_bound(
                     split_criterion.range_of_merit(leaf.stats),
@@ -277,11 +292,22 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 )
                 best_suggestion = best_split_suggestions[-1]
                 second_best_suggestion = best_split_suggestions[-2]
-                if (
-                    best_suggestion.merit - second_best_suggestion.merit > hoeffding_bound
-                    or hoeffding_bound < self.tau
-                ):
+                merit_diff = best_suggestion.merit - second_best_suggestion.merit
+                
+                print(f"      Hoeffding bound calculation:")
+                print(f"        Range of merit: {split_criterion.range_of_merit(leaf.stats)}")
+                print(f"        Delta: {self.delta}, Leaf weight: {leaf.total_weight}")
+                print(f"        Hoeffding bound: {hoeffding_bound}")
+                print(f"        Best merit: {best_suggestion.merit}")
+                print(f"        Second best merit: {second_best_suggestion.merit}")
+                print(f"        Merit difference: {merit_diff}")
+                print(f"        Tau threshold: {self.tau}")
+                
+                if (merit_diff > hoeffding_bound or hoeffding_bound < self.tau):
                     should_split = True
+                    print(f"        ✅ SPLIT APPROVED: Merit diff > Hoeffding bound OR bound < tau")
+                else:
+                    print(f"        ❌ SPLIT REJECTED: Not enough evidence yet")
                 if self.remove_poor_attrs:
                     poor_atts = set()
                     # Add any poor attribute to set
@@ -295,8 +321,35 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                         leaf.disable_attribute(poor_att)
             if should_split:
                 split_decision = best_split_suggestions[-1]
+                print(f"\n      🎯 EXECUTING SPLIT:")
+                print(f"         Selected feature: {split_decision.feature}")
+                print(f"         Numerical feature: {split_decision.numerical_feature}")
+                print(f"         Multiway split: {split_decision.multiway_split}")
+                
+                # 🔍 DETAILED SPLIT DECISION INSPECTION
+                print(f"\n         📋 SPLIT DECISION DETAILS:")
+                print(f"         ===========================")
+                print(f"            Type: {type(split_decision).__name__}")
+                print(f"            Merit: {getattr(split_decision, 'merit', 'N/A')}")
+                print(f"            Feature: {split_decision.feature}")
+                print(f"            Numerical feature: {split_decision.numerical_feature}")
+                print(f"            Multiway split: {split_decision.multiway_split}")
+                
+                # Check for threshold (numeric splits)
+                if hasattr(split_decision, 'threshold'):
+                    print(f"            Threshold: {split_decision.threshold}")
+                
+                # Check for children statistics
+                if hasattr(split_decision, 'children_stats'):
+                    print(f"            Children stats: {split_decision.children_stats}")
+                    print(f"            Number of children: {len(split_decision.children_stats) if split_decision.children_stats else 0}")
+                
+                # Show all attributes of split_decision
+                print(f"            All attributes: {[attr for attr in dir(split_decision) if not attr.startswith('_')]}")
+                
                 if split_decision.feature is None:
                     # Pre-pruning - null wins
+                    print(f"         🚫 PRE-PRUNING: Null split wins, deactivating leaf")
                     leaf.deactivate()
                     self._n_inactive_leaves += 1
                     self._n_active_leaves -= 1
@@ -304,26 +357,71 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                     branch = self._branch_selector(
                         split_decision.numerical_feature, split_decision.multiway_split
                     )
+                    print(f"         🌿 Branch type selected: {branch.__name__}")
+                    
                     leaves = tuple(
                         self._new_leaf(initial_stats, parent=leaf)
                         for initial_stats in split_decision.children_stats  # type: ignore
                     )
+                    print(f"         Created {len(leaves)} new leaf nodes")
 
                     new_split = split_decision.assemble(
                         branch, leaf.stats, leaf.depth, *leaves, **kwargs
                     )
+                    print(f"         🔧 Assembled new split node: {type(new_split).__name__}")
+                    
+                    # 🔍 DETAILED NODE INSPECTION for distributed training
+                    print(f"\n         📦 NODE CONTENTS INSPECTION:")
+                    print(f"         ================================")
+                    
+                    # Original leaf being replaced
+                    print(f"         🍃 ORIGINAL LEAF DATA:")
+                    print(f"            Type: {type(leaf).__name__}")
+                    print(f"            Depth: {getattr(leaf, 'depth', 'N/A')}")
+                    print(f"            Total weight: {getattr(leaf, 'total_weight', 'N/A')}")
+                    print(f"            Stats: {getattr(leaf, 'stats', {})}")
+                    print(f"            Last split attempt: {getattr(leaf, 'last_split_attempt_at', 'N/A')}")
+                    print(f"            Is active: {leaf.is_active() if hasattr(leaf, 'is_active') else 'N/A'}")
+                    
+                    # New split node
+                    print(f"         🌿 NEW SPLIT NODE DATA:")
+                    print(f"            Type: {type(new_split).__name__}")
+                    print(f"            Feature: {getattr(new_split, 'feature', 'N/A')}")
+                    print(f"            Depth: {getattr(new_split, 'depth', 'N/A')}")
+                    print(f"            Stats: {getattr(new_split, 'stats', {})}")
+                    if hasattr(new_split, 'threshold'):
+                        print(f"            Threshold: {new_split.threshold}")
+                    if hasattr(new_split, 'children'):
+                        print(f"            Number of children: {len(new_split.children)}")
+                    print(f"            Max branches: {new_split.max_branches() if hasattr(new_split, 'max_branches') else 'N/A'}")
+                    
+                    # New leaf nodes
+                    print(f"         🌱 NEW LEAF NODES DATA:")
+                    for i, new_leaf in enumerate(leaves):
+                        print(f"            Leaf {i}:")
+                        print(f"              Type: {type(new_leaf).__name__}")
+                        print(f"              Depth: {getattr(new_leaf, 'depth', 'N/A')}")
+                        print(f"              Stats: {getattr(new_leaf, 'stats', {})}")
+                        print(f"              Total weight: {getattr(new_leaf, 'total_weight', 'N/A')}")
+                        print(f"              Parent: {type(getattr(new_leaf, 'parent', None)).__name__ if hasattr(new_leaf, 'parent') and new_leaf.parent else 'None'}")
 
                     self._n_active_leaves -= 1
                     self._n_active_leaves += len(leaves)
+                    
                     if parent is None:
+                        print(f"         🌳 REPLACING ROOT: Old leaf becomes new split node")
                         self._root = new_split
                     else:
+                        print(f"         🔗 REPLACING CHILD: Updating parent's child[{parent_branch}]")
                         parent.children[parent_branch] = new_split
+                    
+                    print(f"         📊 Updated tree stats: active_leaves={self._n_active_leaves}, inactive_leaves={getattr(self, '_n_inactive_leaves', 0)}")
 
                     # Invoke the split callback if provided
                     if self.split_callback is not None:
+                        print(f"         📡 CALLBACK: Invoking split callback for distributed training")
                         try:
-                            self.split_callback({
+                            callback_info = {
                                 'split_type': 'node_split',
                                 'original_leaf': leaf,
                                 'new_split_node': new_split,
@@ -333,13 +431,51 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                                 'parent': parent,
                                 'parent_branch': parent_branch,
                                 'tree_id': id(self)  # Unique identifier for this tree instance
-                            })
+                            }
+                            
+                            print(f"         📦 CALLBACK DATA STRUCTURE FOR KAFKA:")
+                            print(f"         =====================================")
+                            print(f"            split_type: {callback_info['split_type']}")
+                            print(f"            split_feature: {callback_info['split_feature']}")
+                            print(f"            tree_id: {callback_info['tree_id']}")
+                            print(f"            parent_branch: {callback_info['parent_branch']}")
+                            
+                            # Show serializable data from original leaf
+                            print(f"            original_leaf_serializable_data:")
+                            print(f"              type: {type(callback_info['original_leaf']).__name__}")
+                            print(f"              depth: {getattr(callback_info['original_leaf'], 'depth', 'N/A')}")
+                            print(f"              stats: {getattr(callback_info['original_leaf'], 'stats', {})}")
+                            
+                            # Show serializable data from new split node
+                            print(f"            new_split_node_serializable_data:")
+                            print(f"              type: {type(callback_info['new_split_node']).__name__}")
+                            print(f"              feature: {getattr(callback_info['new_split_node'], 'feature', 'N/A')}")
+                            print(f"              depth: {getattr(callback_info['new_split_node'], 'depth', 'N/A')}")
+                            if hasattr(callback_info['new_split_node'], 'threshold'):
+                                print(f"              threshold: {callback_info['new_split_node'].threshold}")
+                            
+                            # Show serializable data from new leaves
+                            print(f"            new_leaves_serializable_data:")
+                            for i, new_leaf in enumerate(callback_info['new_leaves']):
+                                print(f"              leaf_{i}:")
+                                print(f"                type: {type(new_leaf).__name__}")
+                                print(f"                depth: {getattr(new_leaf, 'depth', 'N/A')}")
+                                print(f"                stats: {getattr(new_leaf, 'stats', {})}")
+                            
+                            self.split_callback(callback_info)
+                            print(f"         ✅ Callback executed successfully")
                         except Exception as e:
                             # Don't let callback errors break the training process
-                            print(f"Warning: split_callback failed with error: {e}")
+                            print(f"         ❌ Warning: split_callback failed with error: {e}")
+                    else:
+                        print(f"         📡 No split callback configured")
 
-                # Manage memory
-                self._enforce_size_limit()
+            else:
+                print(f"      ❌ SPLIT REJECTED: Conditions not met")
+                
+            # Manage memory
+            print(f"   🧹 MEMORY MANAGEMENT: Enforcing size limits")
+            self._enforce_size_limit()
 
     def learn_one(self, x, y, *, w=1.0):
         """Train the model on instance x and corresponding target y.
@@ -364,43 +500,88 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
           observed between split attempts exceed the grace period then attempt
           to split.
         """
+        
+        print(f"\n🌱 LEARNING: x={x}, y={y}, weight={w}")
+        print(f"   Total training weight so far: {self._train_weight_seen_by_model}")
 
         # Updates the set of observed classes
         self.classes.add(y)
+        print(f"   Known classes: {sorted(self.classes)}")
 
         self._train_weight_seen_by_model += w
 
         if self._root is None:
             self._root = self._new_leaf()
             self._n_active_leaves = 1
+            print(f"   🌳 TREE INITIALIZATION: Created root leaf node")
+            print(f"   📊 Tree stats: active_leaves={self._n_active_leaves}, inactive_leaves={getattr(self, '_n_inactive_leaves', 0)}")
 
         p_node = None
         node = None
         if isinstance(self._root, DTBranch):
+            print(f"   🚶 TREE TRAVERSAL: Starting from split node (tree has structure)")
             path = iter(self._root.walk(x, until_leaf=False))
+            depth = 0
             while True:
                 aux = next(path, None)
                 if aux is None:
                     break
                 p_node = node
                 node = aux
+                if isinstance(node, DTBranch):
+                    branch_desc = node.repr_split if hasattr(node, 'repr_split') else f"feature={getattr(node, 'feature', '?')}"
+                    print(f"     Depth {depth}: Split node - {branch_desc}")
+                else:
+                    print(f"     Depth {depth}: Reached leaf node")
+                depth += 1
         else:
+            print(f"   🍃 SIMPLE CASE: Root is a leaf node")
             node = self._root
 
         if isinstance(node, HTLeaf):
+            print(f"   📚 LEAF LEARNING: Updating leaf statistics")
+            print(f"      Leaf depth: {getattr(node, 'depth', 'unknown')}")
+            print(f"      Leaf weight before: {getattr(node, 'total_weight', 0)}")
+            
             node.learn_one(x, y, w=w, tree=self)
+            
+            print(f"      Leaf weight after: {getattr(node, 'total_weight', 0)}")
+            
+            # 🔍 DETAILED LEAF STATE AFTER LEARNING
+            print(f"      📊 DETAILED LEAF STATE:")
+            print(f"         Stats after learning: {getattr(node, 'stats', {})}")
+            if hasattr(node, 'stats') and node.stats:
+                # Show class distribution if available
+                print(f"         Class counts in stats: {dict(node.stats) if node.stats else 'Empty'}")
+            
+            # Show splitter state if available
+            if hasattr(node, 'splitter_attrs') and node.splitter_attrs:
+                print(f"         Splitter attributes: {list(node.splitter_attrs.keys())}")
+                for attr, splitter in list(node.splitter_attrs.items())[:3]:  # Show first 3
+                    print(f"           {attr}: {type(splitter).__name__}")
+            
+            print(f"      Growth allowed: {self._growth_allowed}")
+            print(f"      Leaf active: {node.is_active()}")
+            
             if self._growth_allowed and node.is_active():
                 if node.depth >= self.max_depth:  # Max depth reached
+                    print(f"   ⛔ MAX DEPTH REACHED: Deactivating leaf at depth {node.depth}")
                     node.deactivate()
                     self._n_active_leaves -= 1
                     self._n_inactive_leaves += 1
                 else:
                     weight_seen = node.total_weight
                     weight_diff = weight_seen - node.last_split_attempt_at
+                    print(f"   🤔 SPLIT CHECK: weight_seen={weight_seen}, last_attempt={node.last_split_attempt_at}")
+                    print(f"      Weight difference: {weight_diff}, grace_period: {self.grace_period}")
+                    
                     if weight_diff >= self.grace_period:
+                        print(f"   🔥 SPLIT CONDITION MET: Attempting to split leaf!")
                         p_branch = p_node.branch_no(x) if isinstance(p_node, DTBranch) else None
                         self._attempt_to_split(node, p_node, p_branch)
                         node.last_split_attempt_at = weight_seen
+                    else:
+                        print(f"   ⏳ WAITING: Need {self.grace_period - weight_diff} more instances before split attempt")
         else:
             while True:
                 # Split node encountered a previously unseen categorical value (in a multi-way
@@ -425,17 +606,34 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
             node.learn_one(x, y, w=w, tree=self)
 
         if self._train_weight_seen_by_model % self.memory_estimate_period == 0:
+            print(f"   💾 MEMORY CHECK: Estimating model size (every {self.memory_estimate_period} instances)")
             self._estimate_model_size()
+        
+        print(f"   ✅ LEARNING COMPLETE for instance {int(self._train_weight_seen_by_model)}")
+        print(f"   📊 Final tree stats: active_leaves={self._n_active_leaves}, inactive_leaves={getattr(self, '_n_inactive_leaves', 0)}")
+        print(f"   🏗️  Tree depth: {getattr(self._root, 'depth', 0) if self._root else 0}")
 
     def predict_proba_one(self, x):
+        print(f"\n🔮 PREDICTION: Predicting for x={x}")
         proba = {c: 0.0 for c in sorted(self.classes)}
+        print(f"   Initial probabilities: {proba}")
+        
         if self._root is not None:
             if isinstance(self._root, DTBranch):
+                print(f"   🚶 TRAVERSING: Tree has structure, traversing to leaf")
                 leaf = self._root.traverse(x, until_leaf=True)
+                print(f"   🍃 REACHED: Leaf node at depth {getattr(leaf, 'depth', 'unknown')}")
             else:
+                print(f"   🍃 SIMPLE: Root is a leaf node")
                 leaf = self._root
 
-            proba.update(leaf.prediction(x, tree=self))
+            leaf_prediction = leaf.prediction(x, tree=self)
+            print(f"   📊 LEAF PREDICTION: {leaf_prediction}")
+            proba.update(leaf_prediction)
+            print(f"   🎯 FINAL PROBABILITIES: {proba}")
+        else:
+            print(f"   🚫 NO TREE: Root is None, returning default probabilities")
+            
         return proba
 
     @property
