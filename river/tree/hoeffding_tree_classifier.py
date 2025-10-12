@@ -849,6 +849,308 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 leaf_info += f" | Weight: {node.total_weight}"
             print(leaf_info)
 
+    def get_all_nodes(self):
+        """Retrieve all nodes in the tree with their complete data including splitters."""
+        print(f"\n📦 RETRIEVING ALL NODES WITH COMPLETE DATA:")
+        print("=" * 60)
+        
+        if self._root is None:
+            print("   Empty tree (no nodes)")
+            return []
+        
+        all_nodes = []
+        self._collect_all_nodes(self._root, all_nodes, depth=0, path="ROOT")
+        return all_nodes
+    
+    def _collect_all_nodes(self, node, node_list, depth, path):
+        """Recursively collect all nodes with their complete information."""
+        
+        # Create comprehensive node information
+        node_info = {
+            'path': path,
+            'depth': depth,
+            'node_type': type(node).__name__,
+            'node_object': node,  # Keep reference to actual node
+        }
+        
+        print(f"\n🔍 NODE ANALYSIS: {path} (Depth {depth})")
+        print(f"   Type: {node_info['node_type']}")
+        
+        if isinstance(node, DTBranch):
+            # SPLIT NODE ANALYSIS
+            print(f"   🌿 SPLIT NODE DETAILS:")
+            
+            # Basic split information
+            node_info.update({
+                'is_split': True,
+                'feature': getattr(node, 'feature', None),
+                'threshold': getattr(node, 'threshold', None),
+                'stats': getattr(node, 'stats', {}),
+                'children_count': len(getattr(node, 'children', [])),
+                'max_branches': getattr(node, 'max_branches', lambda: 0)(),
+            })
+            
+            print(f"      Split feature: {node_info['feature']}")
+            print(f"      Threshold: {node_info['threshold']}")
+            print(f"      Stats: {node_info['stats']}")
+            print(f"      Children count: {node_info['children_count']}")
+            print(f"      Max branches: {node_info['max_branches']}")
+            
+            # Show split condition
+            if node_info['feature'] and node_info['threshold'] is not None:
+                print(f"      🎯 Split condition: {node_info['feature']} <= {node_info['threshold']}")
+                print(f"         LEFT (≤): {node_info['feature']} <= {node_info['threshold']}")
+                print(f"         RIGHT (>): {node_info['feature']} > {node_info['threshold']}")
+            
+            # Collect children
+            if hasattr(node, 'children'):
+                node_info['children'] = []
+                for i, child in enumerate(node.children):
+                    if child is not None:
+                        child_path = f"{path}->CHILD[{i}]"
+                        if node_info['feature'] and node_info['threshold'] is not None:
+                            if i == 0:
+                                child_path = f"{path}->LEFT({node_info['feature']}<={node_info['threshold']})"
+                            else:
+                                child_path = f"{path}->RIGHT({node_info['feature']}>{node_info['threshold']})"
+                        
+                        child_nodes = self._collect_all_nodes(child, node_list, depth + 1, child_path)
+                        node_info['children'].extend(child_nodes)
+        
+        else:
+            # LEAF NODE ANALYSIS  
+            print(f"   🍃 LEAF NODE DETAILS:")
+            
+            # Basic leaf information
+            node_info.update({
+                'is_split': False,
+                'stats': getattr(node, 'stats', {}),
+                'total_weight': getattr(node, 'total_weight', 0),
+                'is_active': getattr(node, 'is_active', lambda: False)(),
+                'last_split_attempt_at': getattr(node, 'last_split_attempt_at', 0),
+            })
+            
+            print(f"      Stats: {node_info['stats']}")
+            print(f"      Total weight: {node_info['total_weight']}")
+            print(f"      Is active: {node_info['is_active']}")
+            print(f"      Last split attempt: {node_info['last_split_attempt_at']}")
+            
+            # NAIVE BAYES ANALYSIS
+            print(f"      🧠 NAIVE BAYES DATA:")
+            naive_bayes_data = {}
+            
+            # Performance tracking
+            if hasattr(node, '_mc_correct_weight'):
+                naive_bayes_data['mc_correct_weight'] = node._mc_correct_weight
+                print(f"         MC correct weight: {node._mc_correct_weight}")
+            
+            if hasattr(node, '_nb_correct_weight'):
+                naive_bayes_data['nb_correct_weight'] = node._nb_correct_weight
+                print(f"         NB correct weight: {node._nb_correct_weight}")
+            
+            # Determine which prediction method is used
+            if 'mc_correct_weight' in naive_bayes_data and 'nb_correct_weight' in naive_bayes_data:
+                uses_nb = naive_bayes_data['nb_correct_weight'] >= naive_bayes_data['mc_correct_weight']
+                naive_bayes_data['uses_naive_bayes'] = uses_nb
+                print(f"         Uses Naive Bayes: {uses_nb} ({'NB' if uses_nb else 'MC'} prediction)")
+            
+            # SPLITTERS ANALYSIS (THE HEART OF NAIVE BAYES!)
+            print(f"      📊 SPLITTERS (Feature Models):")
+            splitters_data = {}
+            
+            if hasattr(node, 'splitters') and node.splitters:
+                print(f"         Number of features: {len(node.splitters)}")
+                
+                for feature_name, splitter in node.splitters.items():
+                    print(f"\n         🔬 FEATURE: '{feature_name}'")
+                    print(f"            Splitter type: {type(splitter).__name__}")
+                    
+                    splitter_info = {
+                        'type': type(splitter).__name__,
+                        'feature_name': feature_name,
+                        'splitter_object': splitter  # Keep reference for direct access
+                    }
+                    
+                    # GAUSSIAN SPLITTER ANALYSIS
+                    if hasattr(splitter, '_att_dist_per_class'):  # GaussianSplitter
+                        print(f"            📈 GAUSSIAN STATISTICS:")
+                        
+                        # Collect all Gaussian parameters
+                        gaussian_data = {}
+                        
+                        if hasattr(splitter, '_min_per_class'):
+                            gaussian_data['min_per_class'] = dict(splitter._min_per_class)
+                            print(f"               Min values: {gaussian_data['min_per_class']}")
+                        
+                        if hasattr(splitter, '_max_per_class'):
+                            gaussian_data['max_per_class'] = dict(splitter._max_per_class)
+                            print(f"               Max values: {gaussian_data['max_per_class']}")
+                        
+                        # Extract detailed Gaussian parameters
+                        gaussian_distributions = {}
+                        for class_label, gaussian_obj in splitter._att_dist_per_class.items():
+                            print(f"               📊 Class {class_label}:")
+                            
+                            class_gaussian = {}
+                            if hasattr(gaussian_obj, 'n_samples'):
+                                class_gaussian['n_samples'] = gaussian_obj.n_samples
+                                print(f"                  Samples: {gaussian_obj.n_samples}")
+                            
+                            if hasattr(gaussian_obj, 'mean'):
+                                try:
+                                    mean_val = gaussian_obj.mean.get() if hasattr(gaussian_obj.mean, 'get') else gaussian_obj.mean
+                                    class_gaussian['mean'] = mean_val
+                                    print(f"                  Mean: {mean_val}")
+                                except:
+                                    print(f"                  Mean: Cannot access")
+                            
+                            if hasattr(gaussian_obj, 'get'):  # Variance
+                                try:
+                                    var_val = gaussian_obj.get()
+                                    class_gaussian['variance'] = var_val
+                                    print(f"                  Variance: {var_val}")
+                                except:
+                                    print(f"                  Variance: Cannot access")
+                            
+                            # Try to access internal sum and sum_squares for reconstruction
+                            if hasattr(gaussian_obj, '_sum'):
+                                class_gaussian['sum'] = gaussian_obj._sum
+                                print(f"                  Sum: {gaussian_obj._sum}")
+                            if hasattr(gaussian_obj, '_sum_squares'):
+                                class_gaussian['sum_squares'] = gaussian_obj._sum_squares  
+                                print(f"                  Sum squares: {gaussian_obj._sum_squares}")
+                            
+                            gaussian_distributions[class_label] = class_gaussian
+                        
+                        gaussian_data['distributions'] = gaussian_distributions
+                        splitter_info['gaussian_data'] = gaussian_data
+                    
+                    # NOMINAL SPLITTER ANALYSIS
+                    elif hasattr(splitter, '_att_dist_per_class') and hasattr(splitter, '_att_values'):  # NominalSplitter
+                        print(f"            📊 NOMINAL STATISTICS:")
+                        
+                        nominal_data = {}
+                        
+                        if hasattr(splitter, '_total_weight_observed'):
+                            nominal_data['total_weight'] = splitter._total_weight_observed
+                            print(f"               Total weight: {nominal_data['total_weight']}")
+                        
+                        if hasattr(splitter, '_att_values'):
+                            nominal_data['unique_values'] = list(splitter._att_values)
+                            print(f"               Unique values: {nominal_data['unique_values']}")
+                        
+                        if hasattr(splitter, '_att_dist_per_class'):
+                            nominal_data['class_distributions'] = dict(splitter._att_dist_per_class)
+                            print(f"               Class distributions:")
+                            for class_label, value_counts in splitter._att_dist_per_class.items():
+                                print(f"                  Class {class_label}: {dict(value_counts)}")
+                        
+                        splitter_info['nominal_data'] = nominal_data
+                    
+                    # Test conditional probabilities
+                    print(f"            🎯 SAMPLE CONDITIONAL PROBABILITIES:")
+                    if hasattr(node, 'stats') and node.stats:
+                        for class_label in list(node.stats.keys())[:2]:  # Test first 2 classes
+                            try:
+                                # Use a sample value
+                                if hasattr(splitter, '_att_values') and splitter._att_values:
+                                    # Nominal - use first unique value
+                                    test_value = list(splitter._att_values)[0]
+                                elif hasattr(splitter, '_min_per_class') and splitter._min_per_class:
+                                    # Gaussian - use mean of first class
+                                    test_value = list(splitter._min_per_class.values())[0] + 1
+                                else:
+                                    test_value = 1.0
+                                
+                                cond_prob = splitter.cond_proba(test_value, class_label)
+                                print(f"               P({feature_name}={test_value}|class={class_label}) = {cond_prob:.8f}")
+                            except Exception as e:
+                                print(f"               P({feature_name}|class={class_label}) = Error: {e}")
+                    
+                    splitters_data[feature_name] = splitter_info
+            else:
+                print(f"         No splitters available")
+            
+            node_info['naive_bayes_data'] = naive_bayes_data
+            node_info['splitters_data'] = splitters_data
+        
+        node_list.append(node_info)
+        return [node_info]
+    
+    def get_node_by_path(self, target_path):
+        """Get a specific node by its path for detailed inspection."""
+        all_nodes = self.get_all_nodes()
+        
+        for node_info in all_nodes:
+            if node_info['path'] == target_path:
+                return node_info
+        
+        return None
+    
+    def get_all_splitters(self):
+        """Get all splitters from all leaf nodes in the tree."""
+        print(f"\n🧠 COLLECTING ALL SPLITTERS FROM TREE:")
+        print("=" * 50)
+        
+        all_nodes = self.get_all_nodes()
+        all_splitters = {}
+        
+        for node_info in all_nodes:
+            if not node_info['is_split'] and 'splitters_data' in node_info:
+                node_path = node_info['path']
+                print(f"\n🍃 Leaf: {node_path}")
+                
+                for feature_name, splitter_info in node_info['splitters_data'].items():
+                    splitter_key = f"{node_path}::{feature_name}"
+                    all_splitters[splitter_key] = splitter_info
+                    print(f"   📊 {feature_name}: {splitter_info['type']}")
+        
+        print(f"\n📈 TOTAL SPLITTERS FOUND: {len(all_splitters)}")
+        return all_splitters
+
+    def inspect_node_splitters(self, node_path="ROOT"):
+        """Detailed inspection of splitters in a specific node."""
+        print(f"\n🔬 DETAILED SPLITTER INSPECTION: {node_path}")
+        print("=" * 60)
+        
+        node_info = self.get_node_by_path(node_path)
+        
+        if node_info is None:
+            print(f"❌ Node not found: {node_path}")
+            return
+        
+        if node_info['is_split']:
+            print(f"🌿 This is a split node, no splitters available")
+            return
+        
+        if 'splitters_data' not in node_info or not node_info['splitters_data']:
+            print(f"🍃 This leaf has no splitters yet")
+            return
+        
+        print(f"🍃 Leaf node with {len(node_info['splitters_data'])} splitters:")
+        
+        for feature_name, splitter_info in node_info['splitters_data'].items():
+            print(f"\n   🔬 FEATURE: {feature_name}")
+            print(f"      Type: {splitter_info['type']}")
+            
+            # Access the actual splitter object for live data
+            if 'splitter_object' in splitter_info:
+                live_splitter = splitter_info['splitter_object']
+                print(f"      Live splitter object: {type(live_splitter).__name__}")
+                
+                # Show all accessible attributes
+                print(f"      Accessible attributes:")
+                for attr_name in sorted(dir(live_splitter)):
+                    if not attr_name.startswith('__'):
+                        try:
+                            attr_value = getattr(live_splitter, attr_name)
+                            if not callable(attr_value):
+                                print(f"         {attr_name}: {attr_value}")
+                        except:
+                            print(f"         {attr_name}: <cannot access>")
+        
+        return node_info
+
     @property
     def _multiclass(self):
         return True

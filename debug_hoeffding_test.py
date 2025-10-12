@@ -119,21 +119,25 @@ def test_hoeffding_tree():
             print(f"Predicted probabilities: {pred_proba}")
             print(f"Final Prediction: Class {prediction}")
         
-        # clf.splitter
-        print("clf.splitter:", clf.splitter)
-        # print(f"\n🔍 Inspecting the root splitter statistics:")
-        # if hasattr(clf, 'root') and clf.root and hasattr(clf.root, 'splitters'):
-        #     for feature, splitter in clf.root.splitters.items():
-        #         print(f"Feature: {feature}")
-        #         print(f"  Splitter Type: {type(splitter).__name__}")
-        #         if hasattr(splitter, '_att_dist_per_class'):
-        #             print(f"  Class Distributions: {splitter._att_dist_per_class}")
-        #         print(f"  Active Leaves: {splitter._n_active_leaves}")
-        #         print(f"  Inactive Leaves: {getattr(splitter, '_n_inactive_leaves', 0)}")
-        #         print(f"  Depth: {splitter.height}")
-        #         print("-" * 30)
-        # else:
-        #     print("No root or splitters found in the tree.")
+            # Assuming 'clf' is your trained Hoeffding Tree classifier
+            test = clf.get_all_nodes()
+
+            # 1. Since there is only one node (the root), get the first dictionary in the list.
+            root_node_data = test[0]
+
+            # 2. Access the dictionary containing all the splitters/observers.
+            splitters_data = root_node_data['splitters_data']
+
+            # 3. From that dictionary, get the data specifically for the 'education' feature.
+            education_splitter_data = splitters_data['education']
+
+            # 4. Get the actual NominalSplitterClassif object, which is stored under the 'splitter_object' key.
+            nominal_splitter_object = education_splitter_data['splitter_object']
+
+            # 5. Now you can access its attributes directly.
+            print("Successfully accessed the NominalSplitterClassif object.")
+            print("Printing its _att_dist_per_class attribute:")
+            print(nominal_splitter_object._att_dist_per_class)
     except ImportError as e:
         print(f"\n❌ Import failed: {e}")
         print("   This might be expected if 'river' is not installed.")
