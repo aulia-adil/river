@@ -146,6 +146,7 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         stop_mem_management: bool = False,
         remove_poor_attrs: bool = False,
         merit_preprune: bool = True,
+        split_callback: callable | None = None,
     ):
         super().__init__(
             max_depth=max_depth,
@@ -173,9 +174,14 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
 
         self.min_branch_fraction = min_branch_fraction
         self.max_share_to_split = max_share_to_split
+        self.split_callback = split_callback
 
         # To keep track of the observed classes
         self.classes: set = set()
+        
+        # Node ID system for O(1) lookup capability
+        self._next_node_id = 0
+        self._node_registry = {}  # Maps node_id -> node object
 
     @property
     def _mutable_attributes(self):
@@ -201,6 +207,26 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         else:
             self._leaf_prediction = leaf_prediction
 
+    def _generate_node_id(self):
+        """Generate a unique node ID."""
+        node_id = self._next_node_id
+        self._next_node_id += 1
+        return node_id
+    
+    def _register_node(self, node, node_id=None):
+        """Register a node in the node registry for O(1) lookup."""
+        if node_id is None:
+            node_id = self._generate_node_id()
+        
+        # Assign the ID to the node
+        node.node_id = node_id
+        
+        # Register in the lookup table
+        self._node_registry[node_id] = node
+        
+        print(f"   🏷️  REGISTERED NODE: ID={node_id}, Type={type(node).__name__}")
+        return node_id
+
     def _new_leaf(self, initial_stats=None, parent=None):
         if initial_stats is None:
             initial_stats = {}
@@ -210,11 +236,15 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
             depth = parent.depth + 1
 
         if self._leaf_prediction == self._MAJORITY_CLASS:
-            return LeafMajorityClass(initial_stats, depth, self.splitter)
+            leaf = LeafMajorityClass(initial_stats, depth, self.splitter)
         elif self._leaf_prediction == self._NAIVE_BAYES:
-            return LeafNaiveBayes(initial_stats, depth, self.splitter)
+            leaf = LeafNaiveBayes(initial_stats, depth, self.splitter)
         else:  # Naives Bayes Adaptive (default)
-            return LeafNaiveBayesAdaptive(initial_stats, depth, self.splitter)
+            leaf = LeafNaiveBayesAdaptive(initial_stats, depth, self.splitter)
+        
+        # Assign unique ID and register the leaf
+        self._register_node(leaf)
+        return leaf
 
     def _new_split_criterion(self):
         if self._split_criterion == self._GINI_SPLIT:
@@ -305,12 +335,39 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                         branch, leaf.stats, leaf.depth, *leaves, **kwargs
                     )
 
+                    # Register the new split node with unique ID
+                    self._register_node(new_split)
+                    
+                    # Remove the old leaf from registry since it's being replaced
+                    if hasattr(leaf, 'node_id'):
+                        self.remove_node_from_registry(leaf.node_id)
+
                     self._n_active_leaves -= 1
                     self._n_active_leaves += len(leaves)
                     if parent is None:
                         self._root = new_split
                     else:
                         parent.children[parent_branch] = new_split
+                    
+                    # Print registry status for debugging
+                    print(f"   📊 Node registry size: {self.get_node_registry_size()}")
+                    print(f"      Split created: ID={new_split.node_id}, Feature={split_decision.feature}")
+                    print(f"      New leaves: {[leaf.node_id for leaf in leaves if hasattr(leaf, 'node_id')]}")
+                    
+                    # Invoke split callback if provided
+                    if self.split_callback is not None:
+                        split_info = {
+                            'original_leaf': leaf,
+                            'new_split_node': new_split,
+                            'new_leaves': leaves,
+                            'split_feature': split_decision.feature,
+                            'parent': parent,
+                            'parent_branch': parent_branch
+                        }
+                        try:
+                            self.split_callback(split_info)
+                        except Exception as e:
+                            print(f"   ⚠️  Split callback error: {e}")
 
                 # Manage memory
                 self._enforce_size_limit()
@@ -415,3 +472,63 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
     @property
     def _multiclass(self):
         return True
+    
+    # Node ID System Methods
+    def get_node_by_id(self, node_id):
+        """Get a node by its unique ID - O(1) lookup."""
+        return self._node_registry.get(node_id, None)
+    
+    def get_all_node_ids(self):
+        """Get all registered node IDs."""
+        return list(self._node_registry.keys())
+    
+    def get_node_registry_size(self):
+        """Get the number of nodes in the registry."""
+        return len(self._node_registry)
+    
+    def print_node_registry(self):
+        """Print all nodes in the registry with their IDs."""
+        print(f"\n📋 NODE REGISTRY ({len(self._node_registry)} nodes):")
+        print("=" * 50)
+        
+        for node_id, node in sorted(self._node_registry.items()):
+            node_type = type(node).__name__
+            depth = getattr(node, 'depth', 'N/A')
+            stats = getattr(node, 'stats', {})
+            
+            if hasattr(node, 'feature'):  # Split node
+                feature = getattr(node, 'feature', 'N/A')
+                threshold = getattr(node, 'threshold', 'N/A')
+                print(f"   ID {node_id:3d}: {node_type} | Depth: {depth} | Split: {feature} <= {threshold}")
+            else:  # Leaf node
+                total_weight = getattr(node, 'total_weight', 0)
+                print(f"   ID {node_id:3d}: {node_type} | Depth: {depth} | Weight: {total_weight} | Stats: {stats}")
+    
+    def remove_node_from_registry(self, node_id):
+        """Remove a node from the registry (useful for memory management)."""
+        if node_id in self._node_registry:
+            node = self._node_registry.pop(node_id)
+            print(f"   🗑️  REMOVED NODE: ID={node_id}, Type={type(node).__name__}")
+            return node
+        return None
+    
+    def update_node_in_registry(self, node_id, updated_data):
+        """Update node data and notify about the change for distributed systems."""
+        node = self.get_node_by_id(node_id)
+        if node is not None:
+            print(f"   🔄 UPDATE NODE: ID={node_id}, Type={type(node).__name__}")
+            print(f"      Updated data: {updated_data}")
+            
+            # This is where you could trigger Kafka notifications
+            update_info = {
+                'node_id': node_id,
+                'node_type': type(node).__name__,
+                'update_type': 'node_data_update',
+                'updated_data': updated_data,
+                'timestamp': __import__('time').time()
+            }
+            
+            # You can add your Kafka callback here
+            print(f"      📡 Ready for Kafka: {update_info}")
+            return True
+        return False
