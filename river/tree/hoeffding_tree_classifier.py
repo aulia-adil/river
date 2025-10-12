@@ -147,6 +147,8 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         remove_poor_attrs: bool = False,
         merit_preprune: bool = True,
         split_callback: callable | None = None,
+        leaf_update_callback: callable | None = None,
+        leaf_update_threshold: int = 50,
     ):
         super().__init__(
             max_depth=max_depth,
@@ -174,7 +176,11 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
 
         self.min_branch_fraction = min_branch_fraction
         self.max_share_to_split = max_share_to_split
-        self.split_callback = split_callback
+        
+        # Dual gate notification system
+        self.split_callback = split_callback              # Gate 1: Split notifications
+        self.leaf_update_callback = leaf_update_callback  # Gate 2: Leaf update notifications
+        self.leaf_update_threshold = leaf_update_threshold # Customizable threshold (n)
 
         # To keep track of the observed classes
         self.classes: set = set()
@@ -226,6 +232,123 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         
         print(f"   🏷️  REGISTERED NODE: ID={node_id}, Type={type(node).__name__}")
         return node_id
+    
+    def _check_leaf_update_gate(self, node, previous_weight, current_weight):
+        """🚪 GATE 2: Check if leaf has reached multiple of threshold instances."""
+        
+        if self.leaf_update_callback is None:
+            return  # No callback configured
+        
+        # Check if we've crossed a multiple threshold
+        previous_multiple = int(previous_weight // self.leaf_update_threshold)
+        current_multiple = int(current_weight // self.leaf_update_threshold)
+        
+        if current_multiple > previous_multiple:
+            # We've crossed a threshold!
+            node_id = getattr(node, 'node_id', 'unknown')
+            
+            print(f"\n🚪 GATE 2 TRIGGERED: Leaf {node_id} reached {current_multiple * self.leaf_update_threshold} instances")
+            print(f"   Previous weight: {previous_weight:.1f} → Current weight: {current_weight:.1f}")
+            print(f"   Threshold: {self.leaf_update_threshold} (multiple #{current_multiple})")
+            
+            # Prepare leaf update information
+            leaf_update_info = {
+                'gate_type': 'leaf_update',
+                'node_id': node_id,
+                'node_type': type(node).__name__,
+                'previous_weight': previous_weight,
+                'current_weight': current_weight,
+                'threshold': self.leaf_update_threshold,
+                'multiple_reached': current_multiple,
+                'total_instances_reached': current_multiple * self.leaf_update_threshold,
+                
+                # Complete leaf data for Kafka
+                'leaf_data': {
+                    'depth': getattr(node, 'depth', 0),
+                    'stats': dict(getattr(node, 'stats', {})),
+                    'total_weight': current_weight,
+                    'is_active': getattr(node, 'is_active', lambda: False)(),
+                    
+                    # Naive Bayes performance data
+                    'naive_bayes': {
+                        'mc_correct_weight': getattr(node, '_mc_correct_weight', 0),
+                        'nb_correct_weight': getattr(node, '_nb_correct_weight', 0),
+                        'uses_naive_bayes': (
+                            getattr(node, '_nb_correct_weight', 0) >= 
+                            getattr(node, '_mc_correct_weight', 0)
+                        )
+                    },
+                    
+                    # Splitter data for complete state
+                    'splitters': self._extract_splitter_data_for_callback(node)
+                },
+                
+                'timestamp': __import__('time').time(),
+                'tree_id': id(self)
+            }
+            
+            try:
+                self.leaf_update_callback(leaf_update_info)
+                print(f"   ✅ GATE 2 CALLBACK: Executed successfully")
+            except Exception as e:
+                print(f"   ❌ GATE 2 CALLBACK ERROR: {e}")
+    
+    def _extract_splitter_data_for_callback(self, leaf):
+        """Extract splitter data from leaf for callback notifications."""
+        splitters_data = {}
+        
+        if not hasattr(leaf, 'splitters') or not leaf.splitters:
+            return splitters_data
+        
+        for feature_name, splitter in leaf.splitters.items():
+            splitter_info = {
+                "type": type(splitter).__name__,
+                "feature_name": feature_name
+            }
+            
+            # Gaussian splitter data
+            if hasattr(splitter, '_att_dist_per_class'):
+                print(f"      splitter._att_dist_per_class: {splitter._att_dist_per_class}")
+                gaussian_data = {}
+                
+                # Min/max per class
+                if hasattr(splitter, '_min_per_class'):
+                    gaussian_data['min_per_class'] = dict(splitter._min_per_class)
+                if hasattr(splitter, '_max_per_class'):
+                    gaussian_data['max_per_class'] = dict(splitter._max_per_class)
+                
+                # Distribution parameters per class
+                distributions = {}
+                for class_label, dist_obj in splitter._att_dist_per_class.items():
+                    print(f"      dist_obj for class {class_label}: {dist_obj}")
+                    class_data = {}
+                    if hasattr(dist_obj, 'n_samples'):
+                        class_data['n_samples'] = dist_obj.n_samples
+                    if hasattr(dist_obj, 'mean') and hasattr(dist_obj.mean, 'get'):
+                        class_data['mean'] = dist_obj.mean.get()
+                    if hasattr(dist_obj, 'get'):
+                        class_data['variance'] = dist_obj.get()
+                    distributions[str(class_label)] = class_data
+                
+                gaussian_data['distributions'] = distributions
+                splitter_info['gaussian_data'] = gaussian_data
+            
+            # Nominal splitter data
+            elif hasattr(splitter, '_att_values'):
+                nominal_data = {}
+                if hasattr(splitter, '_total_weight_observed'):
+                    nominal_data['total_weight'] = splitter._total_weight_observed
+                if hasattr(splitter, '_att_values'):
+                    nominal_data['unique_values'] = list(splitter._att_values)
+                if hasattr(splitter, '_att_dist_per_class'):
+                    nominal_data['class_distributions'] = {
+                        str(k): dict(v) for k, v in splitter._att_dist_per_class.items()
+                    }
+                splitter_info['nominal_data'] = nominal_data
+            
+            splitters_data[feature_name] = splitter_info
+        
+        return splitters_data
 
     def _new_leaf(self, initial_stats=None, parent=None):
         if initial_stats is None:
@@ -419,7 +542,16 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
             node = self._root
 
         if isinstance(node, HTLeaf):
+            # Store previous weight for gate checking
+            previous_weight = node.total_weight
+            
+            # Learn from the instance
             node.learn_one(x, y, w=w, tree=self)
+            
+            # 🚪 GATE 2: Check for leaf update threshold notification
+            current_weight = node.total_weight
+            self._check_leaf_update_gate(node, previous_weight, current_weight)
+            
             if self._growth_allowed and node.is_active():
                 if node.depth >= self.max_depth:  # Max depth reached
                     node.deactivate()
@@ -430,8 +562,18 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                     weight_diff = weight_seen - node.last_split_attempt_at
                     if weight_diff >= self.grace_period:
                         p_branch = p_node.branch_no(x) if isinstance(p_node, DTBranch) else None
+                        
+                        # 🚪 GATE 1: Split attempt - this will trigger split callback if split occurs
+                        print(f"\n🚪 GATE 1 CHECK: Attempting split on node {getattr(node, 'node_id', 'unknown')}")
+                        registry_size_before = self.get_node_registry_size()
+                        
                         self._attempt_to_split(node, p_node, p_branch)
                         node.last_split_attempt_at = weight_seen
+                        
+                        # Check if split actually occurred
+                        registry_size_after = self.get_node_registry_size()
+                        if registry_size_after > registry_size_before:
+                            print(f"✅ GATE 1 TRIGGERED: Split occurred! Registry: {registry_size_before} → {registry_size_after} nodes")
         else:
             while True:
                 # Split node encountered a previously unseen categorical value (in a multi-way
@@ -453,7 +595,14 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 if isinstance(node, HTLeaf):
                     break
             # Learn from the sample
+            # Store previous weight for gate checking
+            previous_weight = node.total_weight if hasattr(node, 'total_weight') else 0
+            
             node.learn_one(x, y, w=w, tree=self)
+            
+            # 🚪 GATE 2: Check for leaf update threshold notification
+            current_weight = node.total_weight if hasattr(node, 'total_weight') else 0
+            self._check_leaf_update_gate(node, previous_weight, current_weight)
 
         if self._train_weight_seen_by_model % self.memory_estimate_period == 0:
             self._estimate_model_size()
