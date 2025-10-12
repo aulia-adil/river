@@ -383,6 +383,34 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                     print(f"            Last split attempt: {getattr(leaf, 'last_split_attempt_at', 'N/A')}")
                     print(f"            Is active: {leaf.is_active() if hasattr(leaf, 'is_active') else 'N/A'}")
                     
+                    # 🧠 NAIVE BAYES DATA FOR KAFKA
+                    print(f"         🧠 NAIVE BAYES DATA FOR SERIALIZATION:")
+                    if hasattr(leaf, '_mc_correct_weight'):
+                        print(f"            MC correct weight: {leaf._mc_correct_weight}")
+                    if hasattr(leaf, '_nb_correct_weight'):
+                        print(f"            NB correct weight: {leaf._nb_correct_weight}")
+                    
+                    if hasattr(leaf, 'splitters') and leaf.splitters:
+                        print(f"            📈 FEATURE MODELS FOR KAFKA:")
+                        for attr, splitter in leaf.splitters.items():
+                            print(f"              {attr}: {type(splitter).__name__}")
+                            
+                            # This is the data you'd need to serialize for full reconstruction
+                            splitter_data = {}
+                            if hasattr(splitter, '_var_per_class'):
+                                splitter_data['variances'] = dict(splitter._var_per_class)
+                            if hasattr(splitter, '_mean_per_class'):
+                                splitter_data['means'] = dict(splitter._mean_per_class)
+                            if hasattr(splitter, '_n_samples_per_class'):
+                                splitter_data['samples'] = dict(splitter._n_samples_per_class)
+                            if hasattr(splitter, '_counts'):
+                                splitter_data['counts'] = dict(splitter._counts)
+                            
+                            if splitter_data:
+                                print(f"                Serializable data: {splitter_data}")
+                            else:
+                                print(f"                No extractable parameters")
+                    
                     # New split node
                     print(f"         🌿 NEW SPLIT NODE DATA:")
                     print(f"            Type: {type(new_split).__name__}")
@@ -578,11 +606,46 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 # Show class distribution if available
                 print(f"         Class counts in stats: {dict(node.stats) if node.stats else 'Empty'}")
             
-            # Show splitter state if available
-            if hasattr(node, 'splitter_attrs') and node.splitter_attrs:
-                print(f"         Splitter attributes: {list(node.splitter_attrs.keys())}")
-                for attr, splitter in list(node.splitter_attrs.items())[:3]:  # Show first 3
-                    print(f"           {attr}: {type(splitter).__name__}")
+            # 🧠 NAIVE BAYES DATA INSPECTION
+            print(f"      🧠 NAIVE BAYES DATA:")
+            if hasattr(node, '_mc_correct_weight'):
+                print(f"         Majority Class correct weight: {node._mc_correct_weight}")
+            if hasattr(node, '_nb_correct_weight'):
+                print(f"         Naive Bayes correct weight: {node._nb_correct_weight}")
+            
+            # Show splitters (the heart of Naive Bayes!)
+            if hasattr(node, 'splitters') and node.splitters:
+                print(f"         📈 ATTRIBUTE OBSERVERS (Naive Bayes Features):")
+                for attr, splitter in node.splitters.items():
+                    print(f"           Feature '{attr}': {type(splitter).__name__}")
+                    
+                    # Show the internal statistics of each splitter
+                    if hasattr(splitter, 'cond_proba'):
+                        print(f"             📊 Feature Statistics:")
+                        # Try to show internal state
+                        if hasattr(splitter, '_var_per_class'):
+                            print(f"               Variances per class: {dict(splitter._var_per_class)}")
+                        if hasattr(splitter, '_mean_per_class'):
+                            print(f"               Means per class: {dict(splitter._mean_per_class)}")
+                        if hasattr(splitter, '_n_samples_per_class'):
+                            print(f"               Samples per class: {dict(splitter._n_samples_per_class)}")
+                        
+                        # For nominal splitters
+                        if hasattr(splitter, '_counts'):
+                            print(f"               Value counts: {dict(splitter._counts)}")
+                        
+                        # Show a sample conditional probability
+                        if hasattr(node, 'stats') and node.stats:
+                            for class_label in list(node.stats.keys())[:2]:  # Show first 2 classes
+                                try:
+                                    # Use the last seen value for this feature
+                                    test_value = x.get(attr, 0)
+                                    cond_prob = splitter.cond_proba(test_value, class_label)
+                                    print(f"               P({attr}={test_value}|class={class_label}) = {cond_prob:.6f}")
+                                except:
+                                    print(f"               P({attr}|class={class_label}) = Cannot calculate")
+            else:
+                print(f"         No splitters available")
             
             print(f"      Growth allowed: {self._growth_allowed}")
             print(f"      Leaf active: {node.is_active()}")
@@ -686,6 +749,48 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 print(f"   🍃 SIMPLE: Root is a leaf node")
                 leaf = self._root
 
+            # 🧠 NAIVE BAYES PREDICTION ANALYSIS
+            print(f"   🧠 NAIVE BAYES PREDICTION DETAILS:")
+            if hasattr(leaf, '_mc_correct_weight') and hasattr(leaf, '_nb_correct_weight'):
+                print(f"      MC correct weight: {leaf._mc_correct_weight}")
+                print(f"      NB correct weight: {leaf._nb_correct_weight}")
+                uses_nb = leaf._nb_correct_weight >= leaf._mc_correct_weight
+                print(f"      Uses Naive Bayes: {uses_nb} ({'NB >= MC' if uses_nb else 'MC > NB'})")
+            
+            # Show the Naive Bayes calculation step by step
+            if hasattr(leaf, 'stats') and hasattr(leaf, 'splitters') and leaf.splitters:
+                print(f"      🔍 NAIVE BAYES CALCULATION:")
+                
+                # Manual Naive Bayes calculation for transparency
+                total_weight = sum(leaf.stats.values()) if leaf.stats else 0
+                print(f"         Total instances seen: {total_weight}")
+                print(f"         Class priors:")
+                
+                nb_votes = {}
+                for class_label, class_weight in (leaf.stats or {}).items():
+                    if class_weight > 0:
+                        prior = class_weight / total_weight
+                        log_prior = __import__('math').log(prior)
+                        nb_votes[class_label] = log_prior
+                        print(f"           P(class={class_label}) = {class_weight}/{total_weight} = {prior:.4f} (log: {log_prior:.4f})")
+                
+                print(f"         Feature likelihoods:")
+                for attr, value in x.items():
+                    if attr in leaf.splitters:
+                        splitter = leaf.splitters[attr]
+                        print(f"           Feature '{attr}' = {value}:")
+                        for class_label in (leaf.stats or {}).keys():
+                            try:
+                                likelihood = splitter.cond_proba(value, class_label)
+                                log_likelihood = __import__('math').log(likelihood) if likelihood > 0 else float('-inf')
+                                print(f"             P({attr}={value}|class={class_label}) = {likelihood:.6f} (log: {log_likelihood:.4f})")
+                                if class_label in nb_votes:
+                                    nb_votes[class_label] += log_likelihood
+                            except Exception as e:
+                                print(f"             P({attr}={value}|class={class_label}) = Error: {e}")
+                
+                print(f"         Final log-posteriors: {nb_votes}")
+            
             leaf_prediction = leaf.prediction(x, tree=self)
             print(f"   📊 LEAF PREDICTION: {leaf_prediction}")
             proba.update(leaf_prediction)

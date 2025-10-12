@@ -207,6 +207,9 @@ class LeafNaiveBayesAdaptive(LeafMajorityClass):
         Class votes for the given instance.
 
         """
+        print("self.stats NAIVE BAYES ADAPTIVE :", self.stats)
+        print("self.splitters NAIVE BAYES ADAPTIVE :", self.splitters)
+        print("x NAIVE BAYES ADAPTIVE :", x)
         if self.is_active() and self._nb_correct_weight >= self._mc_correct_weight:
             return do_naive_bayes_prediction(x, self.stats, self.splitters)
         else:
