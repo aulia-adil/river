@@ -1,40 +1,59 @@
 """
 Test script to demonstrate the detailed debug output of HoeffdingTreeClassifier.
 This will show you exactly how the tree learns and makes decisions!
+
+MODIFIED AGAIN: The dataset is now much larger (100 instances) and perfectly
+interleaved to guarantee the root leaf sees a mix of classes, forcing a split.
 """
 
 import sys
+import random
+# This path is for demonstration purposes in an isolated environment.
+# You would typically have river installed in your environment.
 sys.path.insert(0, '/root/river')
 
-# Mock the imports to avoid dependency issues
+# Mock the imports to avoid dependency issues if river isn't fully installed
 class MockSynth:
     def __init__(self, classification_function=0, seed=42):
-        self.data = [
-            ({'age': 25, 'income': 30000, 'education': 'high'}, 0),
-            ({'age': 45, 'income': 80000, 'education': 'medium'}, 1),
-            ({'age': 30, 'income': 45000, 'education': 'high'}, 1),
-            ({'age': 22, 'income': 25000, 'education': 'low'}, 0),
-            ({'age': 55, 'income': 95000, 'education': 'high'}, 1),
-            ({'age': 28, 'income': 35000, 'education': 'medium'}, 0),
-            ({'age': 40, 'income': 70000, 'education': 'high'}, 1),
-            ({'age': 33, 'income': 50000, 'education': 'medium'}, 1),
-            ({'age': 26, 'income': 32000, 'education': 'low'}, 0),
-            ({'age': 50, 'income': 85000, 'education': 'high'}, 1),
+        print("💡 Initializing MockSynth with a large, interleaved dataset to FORCE a split.")
+        print("   The rule remains: income < 50000 -> class 0, else class 1.")
+        
+        # --- NEW LARGER, INTERLEAVED DATASET ---
+        # Create two distinct groups of data
+        low_income_samples = [
+            ({'age': random.randint(20, 35), 'income': random.randint(20000, 49000), 'education': random.choice(['low', 'medium'])}, 0)
+            for _ in range(1000)
         ]
+        
+        high_income_samples = [
+            ({'age': random.randint(36, 60), 'income': random.randint(51000, 100000), 'education': random.choice(['medium', 'high'])}, 1)
+            for _ in range(1000)
+        ]
+        
+        # Interleave the data to ensure the first leaf sees a mix of classes
+        self.data = []
+        for s0, s1 in zip(low_income_samples, high_income_samples):
+            self.data.append(s0)
+            self.data.append(s1)
+            
         self.index = 0
+        print(f"   Generated {len(self.data)} total interleaved instances.")
     
     def take(self, n):
-        for i in range(min(n, len(self.data))):
+        for _ in range(min(n, len(self.data))):
             if self.index < len(self.data):
                 yield self.data[self.index]
                 self.index += 1
 
 def simple_callback(split_info):
     """Simple callback to show distributed training capability"""
-    print(f"   🚀 DISTRIBUTED CALLBACK TRIGGERED!")
-    print(f"      Split feature: {split_info['split_feature']}")
-    print(f"      Number of new leaves: {len(split_info['new_leaves'])}")
-    print(f"      Tree ID: {split_info['tree_id']}")
+    print(f"\n**************************************************")
+    print(f"  🚀 NODE SPLIT! DISTRIBUTED CALLBACK TRIGGERED!")
+    print(f"     A leaf node has seen enough data to become an internal node.")
+    print(f"     Best split found on feature: '{split_info['split_feature']}'")
+    print(f"     Number of new leaves created: {len(split_info['new_leaves'])}")
+    print(f"     Tree ID: {split_info['tree_id']}")
+    print(f"**************************************************\n")
 
 def test_hoeffding_tree():
     print("🌳 HOEFFDING TREE CLASSIFIER DEBUG TEST")
@@ -47,8 +66,9 @@ def test_hoeffding_tree():
         
         # Create classifier with debug callback
         clf = HoeffdingTreeClassifier(
-            grace_period=3,  # Very small for quick splits
-            delta=1e-3,      # Less strict for demonstration
+            grace_period=3,   # Will not check for a split until it sees 10 samples
+            delta=1e-7,        # Standard confidence level for splitting
+            split_criterion='info_gain',
             split_callback=simple_callback,
             nominal_attributes=['education']
         )
@@ -58,46 +78,50 @@ def test_hoeffding_tree():
         
         # Generate simple training data
         gen = MockSynth()
-        data = list(gen.take(10))
+        # Train with enough instances to pass the grace period
+        num_instances_to_train = 152
+        data = list(gen.take(num_instances_to_train))
         
-        print(f"\n📊 Training data: {len(data)} instances")
+        print(f"\n📊 Training with {len(data)} instances...")
         
         # Train the model
         for i, (x, y) in enumerate(data):
             print(f"\n{'='*50}")
-            print(f"TRAINING INSTANCE {i+1}/10")
+            print(f"TRAINING INSTANCE {i+1}/{num_instances_to_train} | x={x}, y={y}")
             print(f"{'='*50}")
             
             clf.learn_one(x, y)
             
-            # Make a prediction to see traversal
-            if i >= 2:  # Only predict after a few training instances
-                print(f"\n{'='*30}")
-                print(f"MAKING PREDICTION")
-                print(f"{'='*30}")
+            # Make a prediction to see traversal logic in debug output
+            if i >= clf.grace_period:
+                print(f"\n--- Making prediction on the same instance to see tree traversal ---")
                 pred = clf.predict_proba_one(x)
                 
         print(f"\n🎉 TRAINING COMPLETE!")
         print(f"Final tree statistics:")
         print(f"  - Total weight seen: {clf._train_weight_seen_by_model}")
-        print(f"  - Classes learned: {sorted(clf.classes)}")
-        print(f"  - Active leaves: {clf._n_active_leaves}")
+        print(f"  - Active leaves (branches): {clf._n_active_leaves}")
         print(f"  - Inactive leaves: {getattr(clf, '_n_inactive_leaves', 0)}")
+        print(f"  - Tree depth: {clf.height}")
         
         # Test final predictions
         print(f"\n🔮 FINAL PREDICTIONS TEST:")
         test_instances = [
-            {'age': 35, 'income': 60000, 'education': 'high'},
-            {'age': 20, 'income': 20000, 'education': 'low'}
+            {'age': 40, 'income': 85000, 'education': 'high'},   # Should be class 1
+            {'age': 25, 'income': 30000, 'education': 'low'}    # Should be class 0
         ]
         
         for test_x in test_instances:
             print(f"\n" + "="*40)
-            pred = clf.predict_proba_one(test_x)
+            print(f"Predicting for instance: {test_x}")
+            pred_proba = clf.predict_proba_one(test_x)
+            prediction = max(pred_proba, key=pred_proba.get)
+            print(f"Predicted probabilities: {pred_proba}")
+            print(f"Final Prediction: Class {prediction}")
             
     except ImportError as e:
-        print(f"❌ Import failed: {e}")
-        print("This is expected due to missing dependencies, but the code is modified!")
+        print(f"\n❌ Import failed: {e}")
+        print("   This might be expected if 'river' is not installed.")
     except Exception as e:
         print(f"❌ Error during execution: {e}")
         import traceback

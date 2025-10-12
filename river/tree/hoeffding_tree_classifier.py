@@ -391,9 +391,19 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                     print(f"            Stats: {getattr(new_split, 'stats', {})}")
                     if hasattr(new_split, 'threshold'):
                         print(f"            Threshold: {new_split.threshold}")
+                        print(f"            🎯 SPLIT CONDITION: {new_split.feature} <= {new_split.threshold} (LEFT) | {new_split.feature} > {new_split.threshold} (RIGHT)")
                     if hasattr(new_split, 'children'):
                         print(f"            Number of children: {len(new_split.children)}")
                     print(f"            Max branches: {new_split.max_branches() if hasattr(new_split, 'max_branches') else 'N/A'}")
+                    
+                    # Show how to traverse this split
+                    print(f"         🧭 HOW INFERENCE WORKS:")
+                    if hasattr(new_split, 'threshold'):
+                        print(f"            For new instance x:")
+                        print(f"              if x['{new_split.feature}'] <= {new_split.threshold}:")
+                        print(f"                  → go to LEFT child (branch 0)")
+                        print(f"              else:")
+                        print(f"                  → go to RIGHT child (branch 1)")
                     
                     # New leaf nodes
                     print(f"         🌱 NEW LEAF NODES DATA:")
@@ -531,6 +541,20 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 if isinstance(node, DTBranch):
                     branch_desc = node.repr_split if hasattr(node, 'repr_split') else f"feature={getattr(node, 'feature', '?')}"
                     print(f"     Depth {depth}: Split node - {branch_desc}")
+                    
+                    # Show the actual split condition and decision
+                    if hasattr(node, 'feature') and hasattr(node, 'threshold'):
+                        feature_value = x.get(node.feature, 'MISSING')
+                        if feature_value != 'MISSING':
+                            goes_left = feature_value <= node.threshold
+                            print(f"       🎯 SPLIT TEST: {node.feature}={feature_value} <= {node.threshold}? {goes_left}")
+                            print(f"       🚶 DECISION: Going to {'LEFT' if goes_left else 'RIGHT'} child")
+                        else:
+                            print(f"       ⚠️  MISSING FEATURE: {node.feature} not in instance")
+                    
+                    # Show branch statistics if available
+                    if hasattr(node, 'stats'):
+                        print(f"       📊 Node stats: {node.stats}")
                 else:
                     print(f"     Depth {depth}: Reached leaf node")
                 depth += 1
@@ -612,6 +636,10 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         print(f"   ✅ LEARNING COMPLETE for instance {int(self._train_weight_seen_by_model)}")
         print(f"   📊 Final tree stats: active_leaves={self._n_active_leaves}, inactive_leaves={getattr(self, '_n_inactive_leaves', 0)}")
         print(f"   🏗️  Tree depth: {getattr(self._root, 'depth', 0) if self._root else 0}")
+        
+        # Show current tree structure after learning
+        if int(self._train_weight_seen_by_model) % 10 == 0:  # Show every 10 instances
+            self.print_tree_structure()
 
     def predict_proba_one(self, x):
         print(f"\n🔮 PREDICTION: Predicting for x={x}")
@@ -621,8 +649,39 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         if self._root is not None:
             if isinstance(self._root, DTBranch):
                 print(f"   🚶 TRAVERSING: Tree has structure, traversing to leaf")
-                leaf = self._root.traverse(x, until_leaf=True)
-                print(f"   🍃 REACHED: Leaf node at depth {getattr(leaf, 'depth', 'unknown')}")
+                
+                # Manual traversal to show each split condition
+                current_node = self._root
+                depth = 0
+                print(f"   🗺️  PREDICTION PATH:")
+                
+                while isinstance(current_node, DTBranch):
+                    # Show the split condition
+                    if hasattr(current_node, 'feature') and hasattr(current_node, 'threshold'):
+                        feature_value = x.get(current_node.feature, 'MISSING')
+                        if feature_value != 'MISSING':
+                            goes_left = feature_value <= current_node.threshold
+                            print(f"     Depth {depth}: {current_node.feature}={feature_value} <= {current_node.threshold}? {goes_left}")
+                            print(f"       → Taking {'LEFT' if goes_left else 'RIGHT'} branch")
+                            
+                            # Get the next node
+                            branch_index = 0 if goes_left else 1
+                            if hasattr(current_node, 'children') and len(current_node.children) > branch_index:
+                                current_node = current_node.children[branch_index]
+                                depth += 1
+                            else:
+                                print(f"       ⚠️  No child at branch {branch_index}")
+                                break
+                        else:
+                            print(f"     Depth {depth}: Feature {current_node.feature} MISSING, using most common path")
+                            _, current_node = current_node.most_common_path()
+                            depth += 1
+                    else:
+                        print(f"     Depth {depth}: Non-standard split node")
+                        break
+                
+                leaf = current_node
+                print(f"   🍃 REACHED: Leaf node at depth {getattr(leaf, 'depth', depth)}")
             else:
                 print(f"   🍃 SIMPLE: Root is a leaf node")
                 leaf = self._root
@@ -635,6 +694,55 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
             print(f"   🚫 NO TREE: Root is None, returning default probabilities")
             
         return proba
+
+    def print_tree_structure(self):
+        """Print the complete tree structure with all split conditions."""
+        print(f"\n🌳 COMPLETE TREE STRUCTURE:")
+        print("=" * 50)
+        
+        if self._root is None:
+            print("   Empty tree (no root)")
+            return
+        
+        self._print_node(self._root, depth=0, prefix="")
+    
+    def _print_node(self, node, depth, prefix):
+        """Recursively print tree nodes with split conditions."""
+        indent = "  " * depth
+        
+        if isinstance(node, DTBranch):
+            # Split node
+            node_info = f"{prefix}{indent}🌿 SPLIT"
+            if hasattr(node, 'feature'):
+                node_info += f" on '{node.feature}'"
+            if hasattr(node, 'threshold'):
+                node_info += f" <= {node.threshold}"
+            if hasattr(node, 'stats'):
+                node_info += f" | Stats: {node.stats}"
+            print(node_info)
+            
+            # Print children
+            if hasattr(node, 'children'):
+                for i, child in enumerate(node.children):
+                    if child is not None:
+                        branch_label = ""
+                        if hasattr(node, 'threshold') and hasattr(node, 'feature'):
+                            if i == 0:
+                                branch_label = f"[{node.feature} <= {node.threshold}] "
+                            else:
+                                branch_label = f"[{node.feature} > {node.threshold}] "
+                        else:
+                            branch_label = f"[Branch {i}] "
+                        
+                        self._print_node(child, depth + 1, branch_label)
+        else:
+            # Leaf node
+            leaf_info = f"{prefix}{indent}🍃 LEAF"
+            if hasattr(node, 'stats'):
+                leaf_info += f" | Stats: {node.stats}"
+            if hasattr(node, 'total_weight'):
+                leaf_info += f" | Weight: {node.total_weight}"
+            print(leaf_info)
 
     @property
     def _multiclass(self):
