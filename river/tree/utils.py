@@ -53,8 +53,47 @@ def do_naive_bayes_prediction(x, observed_class_distribution: dict, splitters: d
                 if att_idx not in x:
                     continue
                 obs = splitters[att_idx]
+                
+                # DEBUG: Print detailed obs (splitter) information
+                print(f"\n🔍 SPLITTER DEBUG for feature '{att_idx}':")
+                print(f"   Type: {type(obs).__name__}")
+                print(f"   Feature value: {x[att_idx]}")
+                print(f"   Class: {class_index}")
+                
+                # Print all attributes of the obs object
+                print(f"   Attributes:")
+                for attr_name in dir(obs):
+                    if not attr_name.startswith('_') or attr_name in ['_mean_per_class', '_var_per_class', '_n_samples_per_class', '_counts']:
+                        try:
+                            attr_value = getattr(obs, attr_name)
+                            if not callable(attr_value):
+                                print(f"     {attr_name}: {attr_value}")
+                        except:
+                            print(f"     {attr_name}: <cannot access>")
+                
+                # Show detailed statistics for Gaussian splitters
+                if hasattr(obs, '_mean_per_class'):
+                    print(f"   📊 GAUSSIAN STATISTICS:")
+                    print(f"     Means per class: {getattr(obs, '_mean_per_class', {})}")
+                    print(f"     Variances per class: {getattr(obs, '_var_per_class', {})}")
+                    print(f"     Sample counts per class: {getattr(obs, '_n_samples_per_class', {})}")
+                
+                # Show detailed statistics for Nominal splitters  
+                if hasattr(obs, '_counts'):
+                    print(f"   📊 NOMINAL STATISTICS:")
+                    counts = getattr(obs, '_counts', {})
+                    print(f"     Total counts entries: {len(counts)}")
+                    # Show first few entries
+                    for i, (key, count) in enumerate(counts.items()):
+                        if i < 5:  # Show first 5 entries
+                            print(f"     {key}: {count}")
+                        elif i == 5:
+                            print(f"     ... and {len(counts) - 5} more entries")
+                            break
+                
                 # Prior plus the log likelihood
                 tmp = obs.cond_proba(x[att_idx], class_index)
+                print(f"   Conditional probability P({x[att_idx]}|class={class_index}): {tmp}")
                 votes[class_index] += math.log(tmp) if tmp > 0 else 0.0
 
     # Max log-likelihood

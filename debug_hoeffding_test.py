@@ -118,7 +118,22 @@ def test_hoeffding_tree():
             prediction = max(pred_proba, key=pred_proba.get)
             print(f"Predicted probabilities: {pred_proba}")
             print(f"Final Prediction: Class {prediction}")
-            
+        
+        # clf.splitter
+        print("clf.splitter:", clf.splitter)
+        # print(f"\n🔍 Inspecting the root splitter statistics:")
+        # if hasattr(clf, 'root') and clf.root and hasattr(clf.root, 'splitters'):
+        #     for feature, splitter in clf.root.splitters.items():
+        #         print(f"Feature: {feature}")
+        #         print(f"  Splitter Type: {type(splitter).__name__}")
+        #         if hasattr(splitter, '_att_dist_per_class'):
+        #             print(f"  Class Distributions: {splitter._att_dist_per_class}")
+        #         print(f"  Active Leaves: {splitter._n_active_leaves}")
+        #         print(f"  Inactive Leaves: {getattr(splitter, '_n_inactive_leaves', 0)}")
+        #         print(f"  Depth: {splitter.height}")
+        #         print("-" * 30)
+        # else:
+        #     print("No root or splitters found in the tree.")
     except ImportError as e:
         print(f"\n❌ Import failed: {e}")
         print("   This might be expected if 'river' is not installed.")

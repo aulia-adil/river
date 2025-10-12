@@ -47,6 +47,13 @@ class GaussianSplitter(Splitter):
                 self._max_per_class[target_val] = att_val
 
             val_dist.update(att_val, w)
+        print("Updated GaussianSplitter:")
+        print("  att_val:", att_val)
+        print("  target_val:", target_val)
+        print("  weight:", w)
+        print("  _att_dist_per_class:", self._att_dist_per_class)
+        print("  _min_per_class:", self._min_per_class)
+        print("  _max_per_class:", self._max_per_class)
 
     def cond_proba(self, att_val, target_val):
         if target_val in self._att_dist_per_class:

@@ -36,6 +36,14 @@ class NominalSplitterClassif(Splitter):
                 self._att_dist_per_class[target_val][att_val] = w
 
         self._total_weight_observed += w
+        print("Updated NominalSplitterClassif:")
+        print("  att_val:", att_val)
+        print("  target_val:", target_val)
+        print("  weight:", w)
+        print("  _att_dist_per_class:", self._att_dist_per_class)
+        print("  _att_values:", self._att_values)
+        print("  _total_weight_observed:", self._total_weight_observed)
+        print("  _missing_weight_observed:", self._missing_weight_observed)
 
     def cond_proba(self, att_val, target_val):
         class_dist = self._att_dist_per_class[target_val]
