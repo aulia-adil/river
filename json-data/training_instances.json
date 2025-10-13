@@ -1,0 +1,452 @@
+[
+  {
+    "instance": {
+      "numerical_feature": 0.4967141530112327,
+      "category": "high",
+      "another_num": 1.118764001091077
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.13826430117118466,
+      "category": "medium",
+      "another_num": -1.3760219186551894
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.2790412922001377,
+      "category": "high",
+      "another_num": -1.9176620228167902
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 1.0105152848065264,
+      "category": "medium",
+      "another_num": -1.1506435572868954
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.5713801657541415,
+      "category": "medium",
+      "another_num": -1.9717347791211304
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.9240828377471049,
+      "category": "high",
+      "another_num": 0.4474115788895179
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.9080240755212109,
+      "category": "medium",
+      "another_num": -1.6375742618687168
+    },
+    "class_label": 0,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -1.4123037013352915,
+      "category": "high",
+      "another_num": 1.9329235432271528
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.41701110966317523,
+      "category": "low",
+      "another_num": -1.739793628058882
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.8324618571211564,
+      "category": "medium",
+      "another_num": 1.2335893924658445
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.2910340012621822,
+      "category": "high",
+      "another_num": 0.7330540753018329
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.6355597402746394,
+      "category": "high",
+      "another_num": -1.3065413859689117
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.5661128267810409,
+      "category": "medium",
+      "another_num": 0.08027208471124325
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.7044534503765905,
+      "category": "medium",
+      "another_num": -1.8747468301777657
+    },
+    "class_label": 0,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -2.1783342468237086,
+      "category": "medium",
+      "another_num": 0.9090879834256835
+    },
+    "class_label": 0,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -1.043896408234835,
+      "category": "medium",
+      "another_num": -1.2160685503234192
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -1.0090853428651076,
+      "category": "medium",
+      "another_num": 0.15876852955631904
+    },
+    "class_label": 0,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -1.5832942135368875,
+      "category": "low",
+      "another_num": -0.876261961250477
+    },
+    "class_label": 0,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.324083969394795,
+      "category": "low",
+      "another_num": -1.9374543730352243
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.38508228041631654,
+      "category": "low",
+      "another_num": -1.2051372738633104
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.5821227947130392,
+      "category": "high",
+      "another_num": 1.1607021621248226
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.8877484595933572,
+      "category": "medium",
+      "another_num": -0.5661370858229096
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.33126343140356396,
+      "category": "medium",
+      "another_num": -1.6183595340383548
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.9755451271223592,
+      "category": "medium",
+      "another_num": -0.6992667118930118
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.8347954192304283,
+      "category": "low",
+      "another_num": -0.46829250098484065
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.2965613843289707,
+      "category": "high",
+      "another_num": 1.0431401944675898
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.03582603910995154,
+      "category": "low",
+      "another_num": 0.8426515587431496
+    },
+    "class_label": 0,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 1.5646436558140062,
+      "category": "low",
+      "another_num": -1.1931231906584152
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 2.6335282206121238,
+      "category": "medium",
+      "another_num": -1.4426741823764972
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -1.0250908888108647,
+      "category": "high",
+      "another_num": 1.0222045541721947
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.21216142171162652,
+      "category": "medium",
+      "another_num": 1.5218713560610309
+    },
+    "class_label": 0,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.42686879403972283,
+      "category": "medium",
+      "another_num": 0.5336150260416939
+    },
+    "class_label": 0,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.5297602037670388,
+      "category": "medium",
+      "another_num": 1.5331210356754732
+    },
+    "class_label": 0,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.5132674331133561,
+      "category": "high",
+      "another_num": 1.584365199693973
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.2566301826925544,
+      "category": "medium",
+      "another_num": -1.9979184920187367
+    },
+    "class_label": 0,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.36782572413276127,
+      "category": "high",
+      "another_num": -1.9721914778752372
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -1.4153707420504142,
+      "category": "high",
+      "another_num": -0.9223506648059141
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.42064532276535904,
+      "category": "high",
+      "another_num": -0.7071882719169791
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.9430568084672624,
+      "category": "low",
+      "another_num": -0.9843383442626212
+    },
+    "class_label": 0,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 1.4039587386592935,
+      "category": "high",
+      "another_num": -0.011005976430458198
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.06023020994102644,
+      "category": "medium",
+      "another_num": -1.8677970683978065
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 2.463242112485286,
+      "category": "low",
+      "another_num": -1.0417524373321103
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.33982096418664376,
+      "category": "high",
+      "another_num": 0.6885421896235142
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.0073801499445730065,
+      "category": "high",
+      "another_num": -1.0313602468902965
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.3561598303893801,
+      "category": "medium",
+      "another_num": 0.1430987362990339
+    },
+    "class_label": 0,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.021880874338765014,
+      "category": "low",
+      "another_num": -1.3971298241382821
+    },
+    "class_label": 0,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.7896728047506724,
+      "category": "high",
+      "another_num": -1.1190358097378068
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.43148946326304194,
+      "category": "high",
+      "another_num": -1.0940168992082482
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": 0.5363360323820653,
+      "category": "high",
+      "another_num": 1.746919954946938
+    },
+    "class_label": 1,
+    "weight": 1.0
+  },
+  {
+    "instance": {
+      "numerical_feature": -0.9146909312612774,
+      "category": "low",
+      "another_num": -1.5461059150376437
+    },
+    "class_label": 0,
+    "weight": 1.0
+  }
+]

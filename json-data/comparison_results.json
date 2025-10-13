@@ -1,0 +1,9 @@
+{
+  "tree_structure_match": true,
+  "node_stats_match": true,
+  "prediction_success_rate": 1.0,
+  "identical_predictions": 50,
+  "total_tested": 50,
+  "differences_count": 0,
+  "test_timestamp": 1760398869.845455
+}

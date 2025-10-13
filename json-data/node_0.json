@@ -1,0 +1,119 @@
+{
+  "node_id": 0,
+  "update_type": "complete_node",
+  "timestamp": 1760397848.9913743,
+  "source_tree_id": 136157682910992,
+  "data": {
+    "leaf_stats": {
+      "stats": {
+        "1": 29.0,
+        "0": 21.0
+      },
+      "total_weight": 50.0
+    },
+    "splitter_data": {
+      "splitters": {
+        "numerical_feature": {
+          "type": "GaussianSplitter",
+          "feature_name": "numerical_feature",
+          "gaussian_data": {
+            "min_per_class": {
+              "1": -1.913280244657798,
+              "0": -2.026719615730092
+            },
+            "max_per_class": {
+              "1": 2.463242112485286,
+              "0": 1.1194236115618375
+            },
+            "distributions": {
+              "1": {
+                "n_samples": 29.0
+              },
+              "0": {
+                "n_samples": 21.0
+              }
+            }
+          }
+        },
+        "category": {
+          "type": "NominalSplitterClassif",
+          "feature_name": "category",
+          "nominal_data": {
+            "total_weight": 50.0,
+            "unique_values": [
+              "low",
+              "high",
+              "medium"
+            ],
+            "class_distributions": {
+              "1": {
+                "high": 14.0,
+                "medium": 10.0,
+                "low": 5.0
+              },
+              "0": {
+                "low": 9.0,
+                "medium": 11.0,
+                "high": 1.0
+              }
+            }
+          }
+        },
+        "size": {
+          "type": "NominalSplitterClassif",
+          "feature_name": "size",
+          "nominal_data": {
+            "total_weight": 50.0,
+            "unique_values": [
+              "small",
+              "large"
+            ],
+            "class_distributions": {
+              "1": {
+                "large": 17.0,
+                "small": 12.0
+              },
+              "0": {
+                "small": 19.0,
+                "large": 2.0
+              }
+            }
+          }
+        },
+        "another_num": {
+          "type": "GaussianSplitter",
+          "feature_name": "another_num",
+          "gaussian_data": {
+            "min_per_class": {
+              "1": -1.9336486842885754,
+              "0": -1.9469401553605339
+            },
+            "max_per_class": {
+              "1": 1.8796394086479773,
+              "0": 1.8783385110582342
+            },
+            "distributions": {
+              "1": {
+                "n_samples": 29.0
+              },
+              "0": {
+                "n_samples": 21.0
+              }
+            }
+          }
+        }
+      }
+    },
+    "naive_bayes_data": {
+      "mc_correct_weight": 28.0,
+      "nb_correct_weight": 38.0
+    }
+  },
+  "metadata": {
+    "node_type": "LeafNaiveBayesAdaptive",
+    "depth": 0,
+    "is_active": true,
+    "total_weight": 50.0,
+    "save_timestamp": 1760397848.9927669
+  }
+}

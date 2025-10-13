@@ -1,0 +1,23 @@
+{
+  "tree_config": {
+    "grace_period": 1000,
+    "leaf_prediction": "nba",
+    "nominal_attributes": [
+      "category",
+      "size"
+    ],
+    "split_criterion": "info_gain"
+  },
+  "tree_state": {
+    "n_nodes": 1,
+    "classes": [
+      0,
+      1
+    ],
+    "train_weight_seen": 50.0
+  },
+  "node_files": [
+    "0.json"
+  ],
+  "save_timestamp": 1760397928.5514688
+}
