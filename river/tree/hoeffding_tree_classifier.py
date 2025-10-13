@@ -306,45 +306,89 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 "feature_name": feature_name
             }
             
-            # Gaussian splitter data
             if hasattr(splitter, '_att_dist_per_class'):
                 print(f"      splitter._att_dist_per_class: {splitter._att_dist_per_class}")
-                gaussian_data = {}
                 
-                # Min/max per class
-                if hasattr(splitter, '_min_per_class'):
-                    gaussian_data['min_per_class'] = dict(splitter._min_per_class)
-                if hasattr(splitter, '_max_per_class'):
-                    gaussian_data['max_per_class'] = dict(splitter._max_per_class)
+                # Check if this is a Gaussian splitter by examining the structure
+                # Gaussian: class -> distribution object with methods
+                # Nominal: class -> dict with category -> count
+                is_gaussian_splitter = False
+                is_nominal_splitter = False
                 
-                # Distribution parameters per class
-                distributions = {}
-                for class_label, dist_obj in splitter._att_dist_per_class.items():
-                    print(f"      dist_obj for class {class_label}: {dist_obj}")
-                    class_data = {}
-                    if hasattr(dist_obj, 'n_samples'):
-                        class_data['n_samples'] = dist_obj.n_samples
-                    if hasattr(dist_obj, 'mean') and hasattr(dist_obj.mean, 'get'):
-                        class_data['mean'] = dist_obj.mean.get()
-                    if hasattr(dist_obj, 'get'):
-                        class_data['variance'] = dist_obj.get()
-                    distributions[str(class_label)] = class_data
+                if splitter._att_dist_per_class:
+                    # Get the first class distribution to check its type
+                    first_class_dist = next(iter(splitter._att_dist_per_class.values()))
+                    
+                    # If it's a dict with string/category keys, it's nominal
+                    if isinstance(first_class_dist, dict):
+                        is_nominal_splitter = True
+                        print(f"      → Detected NOMINAL splitter for {feature_name}")
+                    # If it has methods like 'mean' or 'get', it's Gaussian (check for common Gaussian attributes)
+                    elif (hasattr(first_class_dist, 'mean') or hasattr(first_class_dist, 'get') or 
+                          hasattr(first_class_dist, 'n_samples') or 'Gaussian' in str(type(first_class_dist))):
+                        is_gaussian_splitter = True
+                        print(f"      → Detected GAUSSIAN splitter for {feature_name}")
+                    else:
+                        # Fallback: check splitter type name
+                        splitter_type_name = type(splitter).__name__
+                        if 'Gaussian' in splitter_type_name:
+                            is_gaussian_splitter = True
+                            print(f"      → Detected GAUSSIAN splitter for {feature_name} (by splitter type)")
+                        elif 'Nominal' in splitter_type_name:
+                            is_nominal_splitter = True
+                            print(f"      → Detected NOMINAL splitter for {feature_name} (by splitter type)")
+                        else:
+                            print(f"      → Unknown splitter type for {feature_name}: {type(first_class_dist)} (splitter: {splitter_type_name})")
                 
-                gaussian_data['distributions'] = distributions
-                splitter_info['gaussian_data'] = gaussian_data
+                if is_gaussian_splitter:
+                    # Gaussian splitter data
+                    gaussian_data = {}
+                    
+                    # Min/max per class
+                    if hasattr(splitter, '_min_per_class'):
+                        gaussian_data['min_per_class'] = dict(splitter._min_per_class)
+                    if hasattr(splitter, '_max_per_class'):
+                        gaussian_data['max_per_class'] = dict(splitter._max_per_class)
+                    
+                    # Distribution parameters per class
+                    distributions = {}
+                    for class_label, dist_obj in splitter._att_dist_per_class.items():
+                        print(f"      dist_obj for class {class_label}: {dist_obj}")
+                        class_data = {}
+                        if hasattr(dist_obj, 'n_samples'):
+                            class_data['n_samples'] = dist_obj.n_samples
+                        if hasattr(dist_obj, 'mean') and hasattr(dist_obj.mean, 'get'):
+                            class_data['mean'] = dist_obj.mean.get()
+                        if hasattr(dist_obj, 'get'):
+                            class_data['variance'] = dist_obj.get()
+                        distributions[str(class_label)] = class_data
+                    
+                    gaussian_data['distributions'] = distributions
+                    splitter_info['gaussian_data'] = gaussian_data
+                
+                elif is_nominal_splitter:
+                    # Nominal splitter data
+                    nominal_data = {}
+                    if hasattr(splitter, '_total_weight_observed'):
+                        nominal_data['total_weight'] = splitter._total_weight_observed
+                    if hasattr(splitter, '_att_values'):
+                        nominal_data['unique_values'] = list(splitter._att_values)
+                    
+                    # For nominal: _att_dist_per_class is {class: {category: count}}
+                    nominal_data['class_distributions'] = {
+                        str(k): dict(v) for k, v in splitter._att_dist_per_class.items()
+                    }
+                    splitter_info['nominal_data'] = nominal_data
             
-            # Nominal splitter data
+            # Fallback: Check for nominal attributes without _att_dist_per_class
             elif hasattr(splitter, '_att_values'):
                 nominal_data = {}
                 if hasattr(splitter, '_total_weight_observed'):
                     nominal_data['total_weight'] = splitter._total_weight_observed
                 if hasattr(splitter, '_att_values'):
                     nominal_data['unique_values'] = list(splitter._att_values)
-                if hasattr(splitter, '_att_dist_per_class'):
-                    nominal_data['class_distributions'] = {
-                        str(k): dict(v) for k, v in splitter._att_dist_per_class.items()
-                    }
                 splitter_info['nominal_data'] = nominal_data
+                print(f"      → Detected NOMINAL splitter (no _att_dist_per_class) for {feature_name}")
             
             splitters_data[feature_name] = splitter_info
         

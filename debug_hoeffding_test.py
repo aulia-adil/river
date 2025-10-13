@@ -130,25 +130,7 @@ def test_hoeffding_tree():
             print(f"Predicted probabilities: {pred_proba}")
             print(f"Final Prediction: Class {prediction}")
         
-            # Assuming 'clf' is your trained Hoeffding Tree classifier
-            test = clf.get_all_nodes()
 
-            # 1. Since there is only one node (the root), get the first dictionary in the list.
-            root_node_data = test[0]
-
-            # 2. Access the dictionary containing all the splitters/observers.
-            splitters_data = root_node_data['splitters_data']
-
-            # 3. From that dictionary, get the data specifically for the 'education' feature.
-            education_splitter_data = splitters_data['education']
-
-            # 4. Get the actual NominalSplitterClassif object, which is stored under the 'splitter_object' key.
-            nominal_splitter_object = education_splitter_data['splitter_object']
-
-            # 5. Now you can access its attributes directly.
-            print("Successfully accessed the NominalSplitterClassif object.")
-            print("Printing its _att_dist_per_class attribute:")
-            print(nominal_splitter_object._att_dist_per_class)
     except ImportError as e:
         print(f"\n❌ Import failed: {e}")
         print("   This might be expected if 'river' is not installed.")
