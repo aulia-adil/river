@@ -725,3 +725,321 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
             print(f"      📡 Ready for Kafka: {update_info}")
             return True
         return False
+    
+    def apply_distributed_update(self, node_id, update_payload):
+        """Apply updates from distributed training processes to a specific node.
+        
+        This method allows nodes to receive and apply updates from other distributed 
+        training processes, enabling synchronized learning across multiple instances.
+        
+        Parameters
+        ----------
+        node_id : int
+            The ID of the node to update
+        update_payload : dict
+            Dictionary containing the update information with the following structure:
+            {
+                'update_type': 'leaf_stats' | 'splitter_data' | 'naive_bayes_data' | 'complete_node',
+                'data': {
+                    # Update-specific data
+                }
+            }
+        
+        Returns
+        -------
+        bool
+            True if update was successfully applied, False otherwise
+        """
+        node = self.get_node_by_id(node_id)
+        if node is None:
+            print(f"❌ Node {node_id} not found in registry")
+            return False
+        
+        update_type = update_payload.get('update_type')
+        update_data = update_payload.get('data', {})
+        
+        print(f"📡 APPLYING DISTRIBUTED UPDATE:")
+        print(f"   Node ID: {node_id} ({type(node).__name__})")
+        print(f"   Update type: {update_type}")
+        
+        try:
+            if update_type == 'leaf_stats':
+                return self._apply_leaf_stats_update(node, update_data)
+            
+            elif update_type == 'splitter_data':
+                return self._apply_splitter_data_update(node, update_data)
+            
+            elif update_type == 'naive_bayes_data':
+                return self._apply_naive_bayes_update(node, update_data)
+            
+            elif update_type == 'complete_node':
+                return self._apply_complete_node_update(node, update_data)
+            
+            elif update_type == 'incremental_stats':
+                return self._apply_incremental_stats_update(node, update_data)
+            
+            else:
+                print(f"❌ Unknown update type: {update_type}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error applying update: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _apply_leaf_stats_update(self, node, update_data):
+        """Apply leaf statistics updates (class counts, weights)."""
+        print(f"   🍃 Applying leaf stats update...")
+        
+        # Update class statistics
+        if 'stats' in update_data:
+            new_stats = update_data['stats']
+            print(f"      Current stats: {dict(getattr(node, 'stats', {}))}")
+            print(f"      New stats: {new_stats}")
+            
+            # Merge or replace stats
+            if hasattr(node, 'stats'):
+                for class_label, count in new_stats.items():
+                    if class_label in node.stats:
+                        node.stats[class_label] += count  # Incremental update
+                    else:
+                        node.stats[class_label] = count   # New class
+            else:
+                node.stats = dict(new_stats)
+            
+            print(f"      Updated stats: {dict(node.stats)}")
+        
+        # Note: total_weight is calculated from stats, so it's updated automatically
+        # when we update the stats above
+        if 'total_weight' in update_data:
+            print(f"      Total weight after stats update: {getattr(node, 'total_weight', 0)}")
+            print(f"      (total_weight is calculated from stats automatically)")
+        
+        return True
+    
+    def _apply_splitter_data_update(self, node, update_data):
+        """Apply splitter data updates (_att_dist_per_class, etc.)."""
+        print(f"   🔀 Applying splitter data update...")
+        
+        if not hasattr(node, 'splitters'):
+            print(f"      ⚠️ Node has no splitters attribute")
+            return False
+        
+        splitters_updates = update_data.get('splitters', {})
+        
+        for feature_name, splitter_update in splitters_updates.items():
+            if feature_name not in node.splitters:
+                print(f"      ⚠️ Feature {feature_name} not found in node splitters")
+                continue
+            
+            splitter = node.splitters[feature_name]
+            print(f"      📊 Updating splitter for feature: {feature_name}")
+            
+            # Update Gaussian splitter data
+            if 'gaussian_data' in splitter_update:
+                gaussian_data = splitter_update['gaussian_data']
+                print(f"         🔢 Updating Gaussian splitter...")
+                
+                # Update _att_dist_per_class for Gaussian
+                if 'distributions' in gaussian_data:
+                    if not hasattr(splitter, '_att_dist_per_class'):
+                        print(f"         ⚠️ Splitter has no _att_dist_per_class")
+                        continue
+                    
+                    for class_label, class_data in gaussian_data['distributions'].items():
+                        class_key = int(class_label) if class_label.isdigit() else class_label
+                        
+                        if class_key in splitter._att_dist_per_class:
+                            dist_obj = splitter._att_dist_per_class[class_key]
+                            
+                            # Update distribution parameters
+                            if 'n_samples' in class_data and hasattr(dist_obj, 'n_samples'):
+                                dist_obj.n_samples += class_data['n_samples']
+                            
+                            if 'mean' in class_data and hasattr(dist_obj, 'mean'):
+                                # Update mean incrementally
+                                if hasattr(dist_obj.mean, 'update'):
+                                    dist_obj.mean.update(class_data['mean'])
+                            
+                            if 'variance' in class_data and hasattr(dist_obj, 'update'):
+                                # Update variance incrementally
+                                dist_obj.update(class_data['variance'])
+                            
+                            print(f"         ✅ Updated class {class_key} distribution")
+                
+                # Update min/max per class
+                if 'min_per_class' in gaussian_data and hasattr(splitter, '_min_per_class'):
+                    for class_label, min_val in gaussian_data['min_per_class'].items():
+                        class_key = int(class_label) if class_label.isdigit() else class_label
+                        if class_key in splitter._min_per_class:
+                            splitter._min_per_class[class_key] = min(
+                                splitter._min_per_class[class_key], min_val
+                            )
+                        else:
+                            splitter._min_per_class[class_key] = min_val
+                
+                if 'max_per_class' in gaussian_data and hasattr(splitter, '_max_per_class'):
+                    for class_label, max_val in gaussian_data['max_per_class'].items():
+                        class_key = int(class_label) if class_label.isdigit() else class_label
+                        if class_key in splitter._max_per_class:
+                            splitter._max_per_class[class_key] = max(
+                                splitter._max_per_class[class_key], max_val
+                            )
+                        else:
+                            splitter._max_per_class[class_key] = max_val
+            
+            # Update Nominal splitter data
+            elif 'nominal_data' in splitter_update:
+                nominal_data = splitter_update['nominal_data']
+                print(f"         🏷️ Updating Nominal splitter...")
+                
+                # Update class distributions for nominal
+                if 'class_distributions' in nominal_data:
+                    if not hasattr(splitter, '_att_dist_per_class'):
+                        print(f"         ⚠️ Splitter has no _att_dist_per_class")
+                        continue
+                    
+                    for class_label, category_counts in nominal_data['class_distributions'].items():
+                        class_key = int(class_label) if class_label.isdigit() else class_label
+                        
+                        if class_key not in splitter._att_dist_per_class:
+                            splitter._att_dist_per_class[class_key] = {}
+                        
+                        # Update category counts
+                        for category, count in category_counts.items():
+                            if category in splitter._att_dist_per_class[class_key]:
+                                splitter._att_dist_per_class[class_key][category] += count
+                            else:
+                                splitter._att_dist_per_class[class_key][category] = count
+                        
+                        print(f"         ✅ Updated class {class_key} nominal distribution")
+                
+                # Update unique values set
+                if 'unique_values' in nominal_data and hasattr(splitter, '_att_values'):
+                    for value in nominal_data['unique_values']:
+                        splitter._att_values.add(value)
+                
+                # Update total weight
+                if 'total_weight' in nominal_data and hasattr(splitter, '_total_weight_observed'):
+                    splitter._total_weight_observed += nominal_data['total_weight']
+        
+        print(f"      ✅ Splitter data update completed")
+        return True
+    
+    def _apply_naive_bayes_update(self, node, update_data):
+        """Apply Naive Bayes specific updates (correctness weights, etc.)."""
+        print(f"   🧠 Applying Naive Bayes update...")
+        
+        # Update Naive Bayes correctness weights
+        if 'mc_correct_weight' in update_data:
+            if hasattr(node, '_mc_correct_weight'):
+                node._mc_correct_weight += update_data['mc_correct_weight']
+            else:
+                node._mc_correct_weight = update_data['mc_correct_weight']
+            print(f"      📊 Updated MC correct weight: {getattr(node, '_mc_correct_weight', 0)}")
+        
+        if 'nb_correct_weight' in update_data:
+            if hasattr(node, '_nb_correct_weight'):
+                node._nb_correct_weight += update_data['nb_correct_weight']
+            else:
+                node._nb_correct_weight = update_data['nb_correct_weight']
+            print(f"      📊 Updated NB correct weight: {getattr(node, '_nb_correct_weight', 0)}")
+        
+        return True
+    
+    def _apply_complete_node_update(self, node, update_data):
+        """Apply a complete node state update (all data at once)."""
+        print(f"   🔄 Applying complete node update...")
+        
+        # Apply all update types in sequence
+        success = True
+        
+        if 'leaf_stats' in update_data:
+            success &= self._apply_leaf_stats_update(node, update_data['leaf_stats'])
+        
+        if 'splitter_data' in update_data:
+            success &= self._apply_splitter_data_update(node, update_data['splitter_data'])
+        
+        if 'naive_bayes_data' in update_data:
+            success &= self._apply_naive_bayes_update(node, update_data['naive_bayes_data'])
+        
+        print(f"   {'✅' if success else '❌'} Complete node update {'completed' if success else 'failed'}")
+        return success
+    
+    def _apply_incremental_stats_update(self, node, update_data):
+        """Apply incremental statistics updates (like single instance learning)."""
+        print(f"   📈 Applying incremental stats update...")
+        
+        # This simulates learning from a single instance received from distributed system
+        if 'instance' in update_data and 'class_label' in update_data:
+            x = update_data['instance']
+            y = update_data['class_label']
+            w = update_data.get('weight', 1.0)
+            
+            print(f"      🎯 Learning from distributed instance: class={y}, weight={w}")
+            
+            # Apply the learning directly to the node
+            node.learn_one(x, y, w=w, tree=self)
+            
+            print(f"      ✅ Incremental learning applied")
+            return True
+        
+        return False
+    
+    def create_update_payload(self, node_id, update_type='complete_node'):
+        """Create an update payload for a specific node that can be sent to other distributed processes.
+        
+        This method extracts the current state of a node and packages it for distribution.
+        
+        Parameters
+        ----------
+        node_id : int
+            The ID of the node to create payload for
+        update_type : str
+            Type of update payload to create
+        
+        Returns
+        -------
+        dict or None
+            Update payload dictionary, or None if node not found
+        """
+        node = self.get_node_by_id(node_id)
+        if node is None:
+            print(f"❌ Node {node_id} not found for payload creation")
+            return None
+        
+        print(f"📦 CREATING UPDATE PAYLOAD:")
+        print(f"   Node ID: {node_id} ({type(node).__name__})")
+        print(f"   Payload type: {update_type}")
+        
+        payload = {
+            'node_id': node_id,
+            'update_type': update_type,
+            'timestamp': __import__('time').time(),
+            'source_tree_id': id(self),
+            'data': {}
+        }
+        
+        if update_type in ['complete_node', 'leaf_stats']:
+            # Add leaf statistics
+            payload['data']['leaf_stats'] = {
+                'stats': dict(getattr(node, 'stats', {})),
+                'total_weight': getattr(node, 'total_weight', 0),
+            }
+        
+        if update_type in ['complete_node', 'splitter_data']:
+            # Add splitter data
+            payload['data']['splitter_data'] = {
+                'splitters': self._extract_splitter_data_for_callback(node)
+            }
+        
+        if update_type in ['complete_node', 'naive_bayes_data']:
+            # Add Naive Bayes data
+            payload['data']['naive_bayes_data'] = {
+                'mc_correct_weight': getattr(node, '_mc_correct_weight', 0),
+                'nb_correct_weight': getattr(node, '_nb_correct_weight', 0),
+            }
+        
+        print(f"   ✅ Payload created with {len(payload['data'])} data sections")
+        return payload
