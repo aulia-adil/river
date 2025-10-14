@@ -868,18 +868,39 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                         if class_key in splitter._att_dist_per_class:
                             dist_obj = splitter._att_dist_per_class[class_key]
                             
-                            # Update distribution parameters
-                            if 'n_samples' in class_data and hasattr(dist_obj, 'n_samples'):
-                                dist_obj.n_samples += class_data['n_samples']
-                            
-                            if 'mean' in class_data and hasattr(dist_obj, 'mean'):
-                                # Update mean incrementally
-                                if hasattr(dist_obj.mean, 'update'):
-                                    dist_obj.mean.update(class_data['mean'])
-                            
-                            if 'variance' in class_data and hasattr(dist_obj, 'update'):
-                                # Update variance incrementally
-                                dist_obj.update(class_data['variance'])
+                            # For Gaussian distributions, we need to replace since properties are read-only
+                            if hasattr(dist_obj, 'mu') and hasattr(dist_obj, 'sigma'):
+                                print(f"            🔄 Replacing Gaussian distribution for class {class_key}")
+                                
+                                # Import Gaussian class
+                                from river.proba import Gaussian
+                                
+                                # Get target parameters
+                                target_mu = class_data.get('mu', 0.0)
+                                target_sigma = class_data.get('sigma', 1.0)
+                                target_n = class_data.get('n_samples', 1.0)
+                                
+                                # Create new Gaussian and populate it with target stats
+                                new_gaussian = Gaussian()
+                                
+                                # Generate synthetic values to achieve target parameters
+                                if target_n > 0:
+                                    # Learn synthetic data to reach target mu/sigma approximately
+                                    import numpy as np
+                                    synthetic_data = np.random.normal(target_mu, max(target_sigma, 0.01), int(min(target_n, 100)))
+                                    for value in synthetic_data:
+                                        new_gaussian.update(value)
+                                
+                                # Replace the distribution
+                                splitter._att_dist_per_class[class_key] = new_gaussian
+                                print(f"            ✅ Replaced Gaussian: μ={new_gaussian.mu:.3f}, σ={new_gaussian.sigma:.3f}, n={new_gaussian.n_samples}")
+                            else:
+                                # For non-Gaussian distributions, try incremental updates
+                                if 'n_samples' in class_data and hasattr(dist_obj, 'update'):
+                                    # Try incremental updates for other types
+                                    for _ in range(int(class_data.get('n_samples', 0))):
+                                        if 'mean' in class_data:
+                                            dist_obj.update(class_data['mean'])
                             
                             print(f"         ✅ Updated class {class_key} distribution")
                 
