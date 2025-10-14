@@ -796,25 +796,31 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         if 'stats' in update_data:
             new_stats = update_data['stats']
             print(f"      Current stats: {dict(getattr(node, 'stats', {}))}")
-            print(f"      New stats: {new_stats}")
+            print(f"      New stats to sync: {new_stats}")
             
-            # Merge or replace stats
+            # SYNCHRONIZE stats (replace, don't accumulate)
             if hasattr(node, 'stats'):
+                # Clear existing stats and replace with new ones
+                node.stats.clear()
                 for class_label, count in new_stats.items():
-                    if class_label in node.stats:
-                        node.stats[class_label] += count  # Incremental update
-                    else:
-                        node.stats[class_label] = count   # New class
+                    node.stats[class_label] = count
             else:
                 node.stats = dict(new_stats)
             
-            print(f"      Updated stats: {dict(node.stats)}")
+            print(f"      Synchronized stats: {dict(node.stats)}")
         
         # Note: total_weight is calculated from stats, so it's updated automatically
         # when we update the stats above
         if 'total_weight' in update_data:
-            print(f"      Total weight after stats update: {getattr(node, 'total_weight', 0)}")
-            print(f"      (total_weight is calculated from stats automatically)")
+            expected_weight = update_data['total_weight']
+            actual_weight = getattr(node, 'total_weight', 0)
+            print(f"      Expected weight: {expected_weight}")
+            print(f"      Actual weight after sync: {actual_weight}")
+            
+            if abs(actual_weight - expected_weight) > 0.01:
+                print(f"      ⚠️  Weight mismatch detected!")
+            else:
+                print(f"      ✅ Weight synchronized correctly")
         
         return True
     
@@ -848,7 +854,16 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                         continue
                     
                     for class_label, class_data in gaussian_data['distributions'].items():
-                        class_key = int(class_label) if class_label.isdigit() else class_label
+                        # Handle both string and numeric class labels
+                        try:
+                            if isinstance(class_label, str) and class_label.isdigit():
+                                class_key = int(class_label)
+                            elif isinstance(class_label, (int, float)):
+                                class_key = class_label
+                            else:
+                                class_key = float(class_label) if str(class_label).replace('.', '').isdigit() else class_label
+                        except (ValueError, AttributeError):
+                            class_key = class_label
                         
                         if class_key in splitter._att_dist_per_class:
                             dist_obj = splitter._att_dist_per_class[class_key]
@@ -871,7 +886,16 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 # Update min/max per class
                 if 'min_per_class' in gaussian_data and hasattr(splitter, '_min_per_class'):
                     for class_label, min_val in gaussian_data['min_per_class'].items():
-                        class_key = int(class_label) if class_label.isdigit() else class_label
+                        # Handle both string and numeric class labels
+                        try:
+                            if isinstance(class_label, str) and class_label.isdigit():
+                                class_key = int(class_label)
+                            elif isinstance(class_label, (int, float)):
+                                class_key = class_label
+                            else:
+                                class_key = float(class_label) if str(class_label).replace('.', '').isdigit() else class_label
+                        except (ValueError, AttributeError):
+                            class_key = class_label
                         if class_key in splitter._min_per_class:
                             splitter._min_per_class[class_key] = min(
                                 splitter._min_per_class[class_key], min_val
@@ -881,7 +905,16 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 
                 if 'max_per_class' in gaussian_data and hasattr(splitter, '_max_per_class'):
                     for class_label, max_val in gaussian_data['max_per_class'].items():
-                        class_key = int(class_label) if class_label.isdigit() else class_label
+                        # Handle both string and numeric class labels
+                        try:
+                            if isinstance(class_label, str) and class_label.isdigit():
+                                class_key = int(class_label)
+                            elif isinstance(class_label, (int, float)):
+                                class_key = class_label
+                            else:
+                                class_key = float(class_label) if str(class_label).replace('.', '').isdigit() else class_label
+                        except (ValueError, AttributeError):
+                            class_key = class_label
                         if class_key in splitter._max_per_class:
                             splitter._max_per_class[class_key] = max(
                                 splitter._max_per_class[class_key], max_val
@@ -901,7 +934,16 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                         continue
                     
                     for class_label, category_counts in nominal_data['class_distributions'].items():
-                        class_key = int(class_label) if class_label.isdigit() else class_label
+                        # Handle both string and numeric class labels
+                        try:
+                            if isinstance(class_label, str) and class_label.isdigit():
+                                class_key = int(class_label)
+                            elif isinstance(class_label, (int, float)):
+                                class_key = class_label
+                            else:
+                                class_key = float(class_label) if str(class_label).replace('.', '').isdigit() else class_label
+                        except (ValueError, AttributeError):
+                            class_key = class_label
                         
                         if class_key not in splitter._att_dist_per_class:
                             splitter._att_dist_per_class[class_key] = {}
