@@ -19,7 +19,7 @@ class FinalSolution:
     
     def __init__(self):
         self.n_samples = 1000
-        self.training_samples = 50
+        self.training_samples = 500
         
     def generate_dataset(self):
         """Generate test dataset."""
@@ -52,6 +52,8 @@ class FinalSolution:
         
         # Train the tree
         for i, instance in enumerate(instances[:self.training_samples]):
+            # print(f"instance[x]: {instance['x']}")
+            # print(f"instance[y]: {instance['y']}")
             tree.learn_one(instance['x'], instance['y'])
             
             if (i + 1) % 10 == 0:
