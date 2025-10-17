@@ -76,7 +76,7 @@ class TrainingProcess:
     
     def __init__(self):
         self.n_samples = 1000
-        self.training_samples = 10
+        self.training_samples = 1000 # CHECK POINT TESTING
         self.callback_iteration = 0
         self.producer = None
         
@@ -359,9 +359,11 @@ class DistributedSystem:
         self.inference_process = InferenceProcess(self.instances)
         self.inference_process.initialize_tree()
         
+        
+        # CHECK POINT TESTING
         inference_thread = threading.Thread(
             target=self.inference_process.consume_and_update,
-            kwargs={'expected_updates': 10, 'timeout': 30}
+            kwargs={'expected_updates': 1000, 'timeout': 30}
         )
         inference_thread.daemon = True
         inference_thread.start()
