@@ -7,6 +7,7 @@ Use the existing distributed update API properly to achieve perfect synchronizat
 
 import sys
 import os
+import time
 sys.path.append('/root/river')
 from river.tree import HoeffdingTreeClassifier
 from sklearn.datasets import make_classification
@@ -19,7 +20,7 @@ class FinalSolution:
     
     def __init__(self):
         self.n_samples = 1000
-        self.training_samples = 500
+        self.training_samples = 10
         
     def generate_dataset(self):
         """Generate test dataset."""
@@ -47,8 +48,16 @@ class FinalSolution:
         """Train original tree and extract complete payload for distribution."""
         print("🌱 TRAINING ORIGINAL TREE")
         print("=" * 30)
-        
-        tree = HoeffdingTreeClassifier(grace_period=200, leaf_prediction='nba')
+
+        def _leaf_update_callback(update_info):
+            print()
+
+        tree = HoeffdingTreeClassifier(
+            grace_period=200,
+            leaf_prediction='nba',
+            leaf_update_threshold=1,
+            leaf_update_callback=_leaf_update_callback
+        )
         
         # Train the tree
         for i, instance in enumerate(instances[:self.training_samples]):
@@ -68,12 +77,13 @@ class FinalSolution:
         complete_payload = tree.create_update_payload(node_id, 'complete_node')
         
         print(f"   📊 Payload contents:")
-        print(f"      Update type: {complete_payload.get('update_type')}")
-        print(f"      Data keys: {list(complete_payload.get('data', {}).keys())}")
+        print(complete_payload)
+        # print(f"      Update type: {complete_payload.get('update_type')}")
+        # print(f"      Data keys: {list(complete_payload.get('data', {}).keys())}")
         
-        if 'data' in complete_payload and 'stats' in complete_payload['data']:
-            stats = complete_payload['data']['stats']
-            print(f"      Stats: {stats}")
+        # if 'data' in complete_payload and 'stats' in complete_payload['data']:
+        #     stats = complete_payload['data']['stats']
+        #     print(f"      Stats: {stats}")
         
         return tree, complete_payload
     
