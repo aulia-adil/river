@@ -293,6 +293,46 @@ class InferenceProcess:
             y_pred = self.model.predict_one(x)
             y_proba = self.model.predict_proba_one(x)
             
+            # Trace which branch the input follows
+            current_node = self.model._root
+            path = []
+            
+            while current_node is not None:
+                node_id = getattr(current_node, 'node_id', 'unknown')
+                node_type = type(current_node).__name__
+                path.append({'node_id': node_id, 'node_type': node_type})
+                
+                # If it's a leaf, stop
+                if not hasattr(current_node, 'children'):
+                    break
+                
+                # If it's a branch, traverse to child
+                if hasattr(current_node, 'branch_no'):
+                    branch_idx = current_node.branch_no(x)
+                    if hasattr(current_node, 'children') and branch_idx < len(current_node.children):
+                        current_node = current_node.children[branch_idx]
+                    else:
+                        break
+                else:
+                    break
+            
+            # The last node in path is the leaf that made prediction
+            prediction_node = path[-1] if path else {'node_id': 'unknown', 'node_type': 'unknown'}
+            
+            # Get branch decision details
+            branch_decision = None
+            branch_direction = None
+            if len(path) > 1:
+                split_node = self.model._root
+                if hasattr(split_node, 'feature') and hasattr(split_node, 'threshold'):
+                    feature_val = x[split_node.feature]
+                    if feature_val <= split_node.threshold:
+                        branch_decision = f"{split_node.feature} <= {split_node.threshold} (value: {feature_val:.2f})"
+                        branch_direction = "left"
+                    else:
+                        branch_decision = f"{split_node.feature} > {split_node.threshold} (value: {feature_val:.2f})"
+                        branch_direction = "right"
+            
             result = {
                 "sample_id": i,
                 "features": {k: float(v) if isinstance(v, (int, float)) else v 
@@ -302,20 +342,32 @@ class InferenceProcess:
                 "prediction_probabilities": {
                     str(k): float(v) for k, v in y_proba.items()
                 } if y_proba else {},
-                "correct": bool(y_pred == y_true) if y_pred is not None else False
+                "correct": bool(y_pred == y_true) if y_pred is not None else False,
+                "prediction_node_id": prediction_node['node_id'],
+                "prediction_node_type": prediction_node['node_type'],
+                "decision_path": path,
+                "branch_decision": branch_decision,
+                "branch_direction": branch_direction
             }
             
             results.append(result)
             
-            # Print result
+            # Print result with branch information
             print(f"Sample #{i}:")
-            print(f"  Age: {x['age']:.1f}, Salary: {x['salary']:.0f}, Loan: {x['loan']:.0f}")
+            print(f"  Input: age={x['age']:.1f}, salary={x['salary']:.0f}, loan={x['loan']:.0f}")
+            if branch_decision:
+                print(f"  Branch: {branch_decision} → {branch_direction.upper()}")
+            print(f"  Predicted by: Node {prediction_node['node_id']} ({prediction_node['node_type']})")
             print(f"  True: {y_true}, Predicted: {y_pred}, Correct: {y_pred == y_true}")
             print(f"  Probabilities: {y_proba}")
             print()
         
         # Calculate accuracy
         accuracy = sum(1 for r in results if r['correct']) / len(results)
+        
+        # Calculate branch distribution
+        left_branch = sum(1 for r in results if r.get('branch_direction') == 'left')
+        right_branch = sum(1 for r in results if r.get('branch_direction') == 'right')
         
         print("=" * 70)
         print("📊 PREDICTION SUMMARY")
@@ -324,11 +376,30 @@ class InferenceProcess:
         print(f"Correct predictions: {sum(1 for r in results if r['correct'])}")
         print(f"Accuracy: {accuracy:.2%}")
         print()
+        print("Branch Distribution:")
+        print(f"  Left branch (age <= threshold): {left_branch} samples")
+        print(f"  Right branch (age > threshold): {right_branch} samples")
+        print()
         
         return results
     
     def save_predictions(self, results, output_file='json_data/inference_predictions.json'):
         """Save prediction results to file"""
+        
+        # Calculate branch statistics
+        left_branch = sum(1 for r in results if r.get('branch_direction') == 'left')
+        right_branch = sum(1 for r in results if r.get('branch_direction') == 'right')
+        
+        # Calculate per-node statistics
+        node_stats = {}
+        for r in results:
+            node_id = r.get('prediction_node_id')
+            if node_id not in node_stats:
+                node_stats[node_id] = {'total': 0, 'correct': 0}
+            node_stats[node_id]['total'] += 1
+            if r['correct']:
+                node_stats[node_id]['correct'] += 1
+        
         summary = {
             "model_info": {
                 "n_nodes": self.model.n_nodes,
@@ -341,7 +412,16 @@ class InferenceProcess:
             "summary": {
                 "total_samples": len(results),
                 "correct_predictions": sum(1 for r in results if r['correct']),
-                "accuracy": sum(1 for r in results if r['correct']) / len(results)
+                "accuracy": sum(1 for r in results if r['correct']) / len(results),
+                "branch_distribution": {
+                    "left_branch": left_branch,
+                    "right_branch": right_branch
+                },
+                "predictions_per_node": {
+                    f"node_{k}": {"total": v['total'], "correct": v['correct'], 
+                                  "accuracy": v['correct'] / v['total'] if v['total'] > 0 else 0}
+                    for k, v in node_stats.items()
+                }
             }
         }
         
@@ -368,8 +448,8 @@ def main():
     # Load leaf updates (all 10 updates)
     inference.load_leaf_updates('json_data/update_leaf', max_updates=10)
     
-    # Make predictions
-    results = inference.make_predictions(n_samples=5, seed=999)
+    # Make predictions (increase to 10 samples to see both branches)
+    results = inference.make_predictions(n_samples=10, seed=999)
     
     # Save results
     inference.save_predictions(results, 'json_data/inference_predictions.json')
