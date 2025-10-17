@@ -68,7 +68,14 @@ class InferenceProcess:
             new_leaves.append(leaf)
             
         # Create the split node with children
+        # Note: The children are attached during construction (left/right params)
         split_node = self._create_split_node(split_node_info, new_leaves)
+        
+        # Verify children are attached (for debugging)
+        print(f"   Split node has {len(split_node.children)} children:")
+        for i, child in enumerate(split_node.children):
+            child_id = new_leaves_info[i]['node_id']
+            print(f"      Child {i}: {type(child).__name__} (will be node_id={child_id})")
         
         # Replace root (for now, assuming root split)
         if self.model._root is None or original_leaf_id == 0:
@@ -76,10 +83,12 @@ class InferenceProcess:
             print(f"✅ Replaced root with split node ID={split_node_info['node_id']}")
         
         # Register nodes in the model's node registry
+        # This assigns node_id attributes and adds to registry for O(1) lookup
         if hasattr(self.model, '_register_node'):
             self.model._register_node(split_node, split_node_info['node_id'])
             for leaf, leaf_info in zip(new_leaves, new_leaves_info):
                 self.model._register_node(leaf, leaf_info['node_id'])
+            print(f"   Registry now contains: {list(self.model._node_registry.keys())}")
         
         print(f"✅ Split event applied successfully")
         print(f"   Model state: {self.model.n_nodes} nodes, height {self.model.height}")
