@@ -1,0 +1,118 @@
+working update 
+
+def _leaf_update_callback(update_info):
+            """Callback to publish updates to Kafka."""
+            self.callback_iteration += 1
+            
+            # Extract node information
+            node_id = update_info.get('node_id')
+            leaf_data = update_info.get('leaf_data', {})
+            
+            print(f"\n📡 Callback #{self.callback_iteration}: Node {node_id}")
+            
+            # Extract _att_dist_per_class from splitters
+            att_dist_data = {}
+            
+            if 'splitters' in leaf_data:
+                for feature_name, splitter_info in leaf_data['splitters'].items():
+                    if 'gaussian_data' in splitter_info:
+                        gaussian_data = splitter_info['gaussian_data']
+                        if 'distributions' in gaussian_data:
+                            att_dist_data[feature_name] = gaussian_data['distributions']
+            
+            # Extract leaf statistics
+            stats = leaf_data.get('stats', {})
+            total_weight = leaf_data.get('total_weight', 0)
+            
+            # Extract Naive Bayes weights
+            naive_bayes = leaf_data.get('naive_bayes', {})
+            mc_correct_weight = naive_bayes.get('mc_correct_weight', 0)
+            nb_correct_weight = naive_bayes.get('nb_correct_weight', 0)
+            
+            # Create Kafka message
+            kafka_message = {
+                'iteration': self.callback_iteration,
+                'node_id': node_id,
+                'timestamp': time.time(),
+                '_att_dist_per_class': att_dist_data,
+                'stats': stats,
+                'total_weight': total_weight,
+                'mc_correct_weight': mc_correct_weight,
+                'nb_correct_weight': nb_correct_weight
+            }
+            
+            # Publish to Kafka with partition key to ensure ordering
+            future = self.producer.send(
+                KafkaConfig.TOPIC_LEAF_UPDATES,
+                key=str(node_id).encode('utf-8'),  # Use node_id as key for partitioning
+                value=kafka_message
+            )
+            
+            # Wait for send to complete
+            try:
+                record_metadata = future.get(timeout=10)
+                print(f"   ✅ Published to Kafka: {KafkaConfig.TOPIC_LEAF_UPDATES}")
+                print(f"      Partition: {record_metadata.partition}, Offset: {record_metadata.offset}")
+                print(f"      Stats: {stats}, Weights: MC={mc_correct_weight}, NB={nb_correct_weight}")
+            except Exception as e:
+                print(f"   ❌ Failed to publish: {e}")
+
+
+WORKING INFERENCE
+
+def _apply_update(self, update_data):
+        """Apply Kafka update to inference tree."""
+        node_id = update_data.get('node_id', 0)
+        att_dist_per_class = update_data.get('_att_dist_per_class', {})
+        stats_raw = update_data.get('stats', {})
+        total_weight = update_data.get('total_weight', 0)
+        mc_correct_weight = update_data.get('mc_correct_weight', 0)
+        nb_correct_weight = update_data.get('nb_correct_weight', 0)
+        
+        # Convert stats keys from strings back to floats (JSON converts them to strings)
+        stats = {float(k): v for k, v in stats_raw.items()}
+        
+        # Build the update payload
+        update_payload = {
+            'node_id': node_id,
+            'update_type': 'complete_node',
+            'timestamp': update_data.get('timestamp'),
+            'data': {
+                'leaf_stats': {
+                    'stats': stats,
+                    'total_weight': total_weight
+                },
+                'splitter_data': {
+                    'splitters': {}
+                },
+                'naive_bayes_data': {
+                    'mc_correct_weight': mc_correct_weight,
+                    'nb_correct_weight': nb_correct_weight
+                }
+            }
+        }
+        
+        # Convert distributions format
+        for feature_name, class_distributions in att_dist_per_class.items():
+            distributions_dict = {}
+            for class_label, dist_params in class_distributions.items():
+                distributions_dict[class_label] = {
+                    'n_samples': dist_params.get('n_samples'),
+                    'mu': dist_params.get('mu'),
+                    'sigma': dist_params.get('sigma')
+                }
+            
+            update_payload['data']['splitter_data']['splitters'][feature_name] = {
+                'type': 'GaussianSplitter',
+                'feature_name': feature_name,
+                'gaussian_data': {
+                    'distributions': distributions_dict
+                }
+            }
+        
+        # Apply the update
+        if node_id in self.tree._node_registry:
+            success = self.tree.apply_distributed_update(node_id, update_payload)
+            print(f"   {'✅' if success else '❌'} Update applied to inference tree")
+        else:
+            print(f"   ⚠️ Node {node_id} not found in registry")
