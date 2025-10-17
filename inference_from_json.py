@@ -59,6 +59,8 @@ class InferenceProcess:
         print(f"Split node type: {split_node_info['node_type']}")
         print(f"Branch params: {split_node_info['branch_params']}")
         print(f"New leaves: {[leaf['node_id'] for leaf in new_leaves_info]}")
+        # print new_leaves_info
+        print(f"   📊 split data: {split_data}")
         print()
         
         # Create new leaf children FIRST

@@ -495,6 +495,8 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                     branch = self._branch_selector(
                         split_decision.numerical_feature, split_decision.multiway_split
                     )
+                    # print split_decision.children_stats
+                    print(f"   📊 Split decision children stats: {split_decision.children_stats}")
                     leaves = tuple(
                         self._new_leaf(initial_stats, parent=leaf)
                         for initial_stats in split_decision.children_stats  # type: ignore
