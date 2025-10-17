@@ -56,8 +56,7 @@ class FinalSolution:
         print("=" * 30)
 
         def _leaf_update_callback(update_info):
-            print(update_info)
-            """Callback to save only _att_dist_per_class to JSON."""
+            """Callback to save _att_dist_per_class + stats + naive_bayes to JSON."""
             self.callback_iteration += 1
             
             # Extract node information
@@ -66,7 +65,7 @@ class FinalSolution:
             
             print(f"\n📡 Callback #{self.callback_iteration}: Node {node_id}")
             
-            # Extract only _att_dist_per_class from splitters
+            # Extract _att_dist_per_class from splitters
             att_dist_data = {}
             
             if 'splitters' in leaf_data:
@@ -84,12 +83,29 @@ class FinalSolution:
                                 n = dist_params.get('n_samples', 0)
                                 print(f"      Class {class_label}: μ={mu:.3f}, σ={sigma:.3f}, n={n}")
             
-            # Create JSON payload with only _att_dist_per_class
+            # Extract leaf statistics
+            stats = leaf_data.get('stats', {})
+            total_weight = leaf_data.get('total_weight', 0)
+            
+            # Extract Naive Bayes weights
+            naive_bayes = leaf_data.get('naive_bayes', {})
+            mc_correct_weight = naive_bayes.get('mc_correct_weight', 0)
+            nb_correct_weight = naive_bayes.get('nb_correct_weight', 0)
+            
+            print(f"   Stats: {stats}")
+            print(f"   Total weight: {total_weight}")
+            print(f"   MC/NB weights: {mc_correct_weight}/{nb_correct_weight}")
+            
+            # Create JSON payload with essential data
             json_payload = {
                 'callback_iteration': self.callback_iteration,
                 'node_id': node_id,
                 'timestamp': time.time(),
-                '_att_dist_per_class': att_dist_data
+                '_att_dist_per_class': att_dist_data,
+                'stats': stats,
+                'total_weight': total_weight,
+                'mc_correct_weight': mc_correct_weight,
+                'nb_correct_weight': nb_correct_weight
             }
             
             # Save to JSON file
@@ -188,14 +204,31 @@ class FinalSolution:
         # Reconstruct the payload from JSON data
         node_id = json_data.get('node_id', 0)
         att_dist_per_class = json_data.get('_att_dist_per_class', {})
+        stats_raw = json_data.get('stats', {})
+        total_weight = json_data.get('total_weight', 0)
+        mc_correct_weight = json_data.get('mc_correct_weight', 0)
+        nb_correct_weight = json_data.get('nb_correct_weight', 0)
+        
+        # Convert stats keys from strings back to floats (JSON converts them to strings)
+        stats = {float(k): v for k, v in stats_raw.items()}
         
         # Build the update payload in the format expected by apply_distributed_update
         update_payload = {
             'node_id': node_id,
-            'update_type': 'splitter_data',
+            'update_type': 'complete_node',
             'timestamp': json_data.get('timestamp'),
             'data': {
-                'splitters': {}
+                'leaf_stats': {
+                    'stats': stats,
+                    'total_weight': total_weight
+                },
+                'splitter_data': {
+                    'splitters': {}
+                },
+                'naive_bayes_data': {
+                    'mc_correct_weight': mc_correct_weight,
+                    'nb_correct_weight': nb_correct_weight
+                }
             }
         }
         
@@ -209,7 +242,7 @@ class FinalSolution:
                     'sigma': dist_params.get('sigma')
                 }
             
-            update_payload['data']['splitters'][feature_name] = {
+            update_payload['data']['splitter_data']['splitters'][feature_name] = {
                 'type': 'GaussianSplitter',
                 'feature_name': feature_name,
                 'gaussian_data': {
@@ -217,8 +250,10 @@ class FinalSolution:
                 }
             }
         
-        print(f"\n   📦 Applying update from JSON...")
+        print(f"\n   📦 Applying complete update from JSON...")
         print(f"      Features to update: {list(att_dist_per_class.keys())}")
+        print(f"      Stats to sync: {stats}")
+        print(f"      MC/NB weights: {mc_correct_weight}/{nb_correct_weight}")
         
         # Get the node from registry
         if node_id not in inference_tree._node_registry:
