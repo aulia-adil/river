@@ -139,17 +139,16 @@ class FinalSolution:
         
         return tree, complete_payload
     
-    def create_inference_tree_from_payload(self, instances, complete_payload):
-        """Create inference tree using the complete payload."""
-        print(f"\n🎯 CREATING INFERENCE TREE FROM PAYLOAD")
+    def create_inference_tree_from_json(self, instances):
+        """Create inference tree using JSON files from test_json_file directory."""
+        print(f"\n🎯 CREATING INFERENCE TREE FROM JSON FILES")
         print("=" * 45)
-        print(complete_payload)
         
         # Create inference tree
         inference_tree = HoeffdingTreeClassifier(grace_period=200, leaf_prediction='nba')
         
         # Initialize with one instance from each class to ensure splitters exist
-        print(f"   🌱 Smart initialization...")
+        print(f"   🌱 Initializing tree with both classes...")
         
         # Find instances of both classes
         class_instances = {0: None, 1: None}
@@ -163,12 +162,73 @@ class FinalSolution:
                 inference_tree.learn_one(instance['x'], instance['y'])
                 print(f"      ✅ Initialized with class {class_label}")
         
-        # Apply the complete payload
-        node_id = list(inference_tree._node_registry.keys())[0]
+        # Find all JSON files and sort them
+        json_files = sorted([
+            f for f in os.listdir(self.json_output_dir) 
+            if f.startswith('iteration_') and f.endswith('.json')
+        ], key=lambda x: int(x.split('_')[1].split('.')[0]))
         
-        print(f"   📦 Applying complete payload...")
-        success = inference_tree.apply_distributed_update(node_id, complete_payload)
-        print(f"      {'✅' if success else '❌'} Payload application: {success}")
+        print(f"\n   📁 Found {len(json_files)} JSON files")
+        
+        if not json_files:
+            print(f"   ❌ No JSON files found in {self.json_output_dir}")
+            return inference_tree
+        
+        # Read the last JSON file (final state)
+        last_json_file = json_files[-1]
+        json_path = os.path.join(self.json_output_dir, last_json_file)
+        
+        print(f"   📄 Reading: {last_json_file}")
+        
+        with open(json_path, 'r') as f:
+            json_data = json.load(f)
+        
+        print(f"      Iteration: {json_data.get('callback_iteration')}")
+        print(f"      Node ID: {json_data.get('node_id')}")
+        
+        # Reconstruct the payload from JSON data
+        node_id = json_data.get('node_id', 0)
+        att_dist_per_class = json_data.get('_att_dist_per_class', {})
+        
+        # Build the update payload in the format expected by apply_distributed_update
+        update_payload = {
+            'node_id': node_id,
+            'update_type': 'splitter_data',
+            'timestamp': json_data.get('timestamp'),
+            'data': {
+                'splitters': {}
+            }
+        }
+        
+        # Convert JSON format to the format expected by apply_distributed_update
+        for feature_name, class_distributions in att_dist_per_class.items():
+            distributions_dict = {}
+            for class_label, dist_params in class_distributions.items():
+                distributions_dict[class_label] = {
+                    'n_samples': dist_params.get('n_samples'),
+                    'mu': dist_params.get('mu'),
+                    'sigma': dist_params.get('sigma')
+                }
+            
+            update_payload['data']['splitters'][feature_name] = {
+                'type': 'GaussianSplitter',
+                'feature_name': feature_name,
+                'gaussian_data': {
+                    'distributions': distributions_dict
+                }
+            }
+        
+        print(f"\n   📦 Applying update from JSON...")
+        print(f"      Features to update: {list(att_dist_per_class.keys())}")
+        
+        # Get the node from registry
+        if node_id not in inference_tree._node_registry:
+            print(f"   ❌ Node {node_id} not found in registry")
+            return inference_tree
+        
+        # Apply the update
+        success = inference_tree.apply_distributed_update(node_id, update_payload)
+        print(f"      {'✅' if success else '❌'} Update application: {success}")
         
         # Verify synchronization
         node = inference_tree._node_registry[node_id]
@@ -177,7 +237,7 @@ class FinalSolution:
         final_mc = getattr(node, '_mc_correct_weight', 0)
         final_nb = getattr(node, '_nb_correct_weight', 0)
         
-        print(f"   📊 Final state verification:")
+        print(f"\n   📊 Final state after JSON update:")
         print(f"      Stats: {final_stats}")
         print(f"      Total weight: {final_weight}")
         print(f"      MC weight: {final_mc}")
@@ -275,11 +335,14 @@ class FinalSolution:
         instances = self.generate_dataset()
         print(f"📊 Generated {len(instances)} instances\n")
         
-        # Train original and extract payload
+        # Train original and extract payload (also saves JSON files)
         original_tree, complete_payload = self.train_and_extract_payload(instances)
         
-        # Create inference tree from payload
-        inference_tree = self.create_inference_tree_from_payload(instances, complete_payload)
+        # Create inference tree from JSON files
+        print(f"\n{'='*45}")
+        print(f"🔄 NOW TESTING JSON-BASED SYNCHRONIZATION")
+        print(f"{'='*45}")
+        inference_tree = self.create_inference_tree_from_json(instances)
         
         # Comprehensive comparison
         test_instances = instances[self.training_samples:self.training_samples + 5]
@@ -290,12 +353,13 @@ class FinalSolution:
         
         if accuracy == 100:
             print(f"🎉🎉🎉 MISSION ACCOMPLISHED! 🎉🎉🎉")
-            print(f"✅ Perfect distributed synchronization achieved")
+            print(f"✅ Perfect JSON-based synchronization achieved")
             print(f"✅ Both trees make identical predictions")
             print(f"✅ Ready for Kafka production deployment")
             print(f"🚀 Distributed Hoeffding Tree: SUCCESS!")
         else:
             print(f"🔧 Final accuracy: {accuracy:.1f}%")
+            print(f"📋 JSON contains only _att_dist_per_class")
             print(f"📋 Additional investigation needed")
         
         return accuracy
