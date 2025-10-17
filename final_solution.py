@@ -8,6 +8,7 @@ Use the existing distributed update API properly to achieve perfect synchronizat
 import sys
 import os
 import time
+import json
 sys.path.append('/root/river')
 from river.tree import HoeffdingTreeClassifier
 from sklearn.datasets import make_classification
@@ -21,6 +22,11 @@ class FinalSolution:
     def __init__(self):
         self.n_samples = 1000
         self.training_samples = 10
+        self.callback_iteration = 0
+        self.json_output_dir = "test_json_file"
+        
+        # Create output directory if it doesn't exist
+        os.makedirs(self.json_output_dir, exist_ok=True)
         
     def generate_dataset(self):
         """Generate test dataset."""
@@ -50,7 +56,53 @@ class FinalSolution:
         print("=" * 30)
 
         def _leaf_update_callback(update_info):
-            print()
+            print("YOLO THE KID")
+            print(update_info)
+            """Callback to save only _att_dist_per_class to JSON."""
+            self.callback_iteration += 1
+            
+            # Extract node information
+            node_id = update_info.get('node_id')
+            leaf_data = update_info.get('leaf_data', {})
+            
+            print(f"\n📡 Callback #{self.callback_iteration}: Node {node_id}")
+            
+            # Extract only _att_dist_per_class from splitters
+            att_dist_data = {}
+            
+            if 'splitters' in leaf_data:
+                for feature_name, splitter_info in leaf_data['splitters'].items():
+                    if 'gaussian_data' in splitter_info:
+                        gaussian_data = splitter_info['gaussian_data']
+                        if 'distributions' in gaussian_data:
+                            att_dist_data[feature_name] = gaussian_data['distributions']
+                            
+                            # Show what we're saving
+                            print(f"   Feature '{feature_name}':")
+                            for class_label, dist_params in gaussian_data['distributions'].items():
+                                mu = dist_params.get('mu', 0)
+                                sigma = dist_params.get('sigma', 0)
+                                n = dist_params.get('n_samples', 0)
+                                print(f"      Class {class_label}: μ={mu:.3f}, σ={sigma:.3f}, n={n}")
+            
+            # Create JSON payload with only _att_dist_per_class
+            json_payload = {
+                'callback_iteration': self.callback_iteration,
+                'node_id': node_id,
+                'timestamp': time.time(),
+                '_att_dist_per_class': att_dist_data
+            }
+            
+            # Save to JSON file
+            json_filename = os.path.join(
+                self.json_output_dir, 
+                f"iteration_{self.callback_iteration}.json"
+            )
+            
+            with open(json_filename, 'w') as f:
+                json.dump(json_payload, f, indent=2)
+            
+            print(f"   ✅ Saved to: {json_filename}")
 
         tree = HoeffdingTreeClassifier(
             grace_period=200,

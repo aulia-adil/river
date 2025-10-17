@@ -131,3 +131,13 @@ Cargo.lock
 
 # WASM
 /*.html
+test_json_file/iteration_1.json
+test_json_file/iteration_2.json
+test_json_file/iteration_3.json
+test_json_file/iteration_4.json
+test_json_file/iteration_5.json
+test_json_file/iteration_6.json
+test_json_file/iteration_7.json
+test_json_file/iteration_8.json
+test_json_file/iteration_9.json
+test_json_file/iteration_10.json

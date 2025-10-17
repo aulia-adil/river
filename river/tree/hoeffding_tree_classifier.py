@@ -358,11 +358,14 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                         print(f"      dist_obj for class {class_label}: {dist_obj}")
                         class_data = {}
                         if hasattr(dist_obj, 'n_samples'):
+                            print("JOJO 0")
                             class_data['n_samples'] = dist_obj.n_samples
-                        if hasattr(dist_obj, 'mean') and hasattr(dist_obj.mean, 'get'):
-                            class_data['mean'] = dist_obj.mean.get()
-                        if hasattr(dist_obj, 'get'):
-                            class_data['variance'] = dist_obj.get()
+                        if hasattr(dist_obj, 'mu'):
+                            print("JOJO 1")
+                            class_data['mu'] = dist_obj.mu
+                        if hasattr(dist_obj, 'sigma'):
+                            print("JOJO 2")
+                            class_data['sigma'] = dist_obj.sigma
                         distributions[str(class_label)] = class_data
                     
                     gaussian_data['distributions'] = distributions
