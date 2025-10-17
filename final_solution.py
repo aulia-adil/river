@@ -56,7 +56,6 @@ class FinalSolution:
         print("=" * 30)
 
         def _leaf_update_callback(update_info):
-            print("YOLO THE KID")
             print(update_info)
             """Callback to save only _att_dist_per_class to JSON."""
             self.callback_iteration += 1

@@ -53,7 +53,6 @@ class Gaussian(base.ContinuousDistribution):
 
     @property
     def n_samples(self):
-        print("MOLOLOY")
         return self._var.mean.n
 
     @property
