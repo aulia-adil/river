@@ -91,6 +91,7 @@ class FinalSolution:
         """Create inference tree using the complete payload."""
         print(f"\n🎯 CREATING INFERENCE TREE FROM PAYLOAD")
         print("=" * 45)
+        print(complete_payload)
         
         # Create inference tree
         inference_tree = HoeffdingTreeClassifier(grace_period=200, leaf_prediction='nba')

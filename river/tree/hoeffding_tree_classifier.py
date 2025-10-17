@@ -305,6 +305,8 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 "type": type(splitter).__name__,
                 "feature_name": feature_name
             }
+
+            print(f"      splitter: {splitter}")
             
             if hasattr(splitter, '_att_dist_per_class'):
                 print(f"      splitter._att_dist_per_class: {splitter._att_dist_per_class}")
