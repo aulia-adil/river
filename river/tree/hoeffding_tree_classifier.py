@@ -358,13 +358,10 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                         print(f"      dist_obj for class {class_label}: {dist_obj}")
                         class_data = {}
                         if hasattr(dist_obj, 'n_samples'):
-                            print("JOJO 0")
                             class_data['n_samples'] = dist_obj.n_samples
                         if hasattr(dist_obj, 'mu'):
-                            print("JOJO 1")
                             class_data['mu'] = dist_obj.mu
                         if hasattr(dist_obj, 'sigma'):
-                            print("JOJO 2")
                             class_data['sigma'] = dist_obj.sigma
                         distributions[str(class_label)] = class_data
                     
@@ -1006,14 +1003,14 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         # Update Naive Bayes correctness weights
         if 'mc_correct_weight' in update_data:
             if hasattr(node, '_mc_correct_weight'):
-                node._mc_correct_weight += update_data['mc_correct_weight']
+                node._mc_correct_weight = update_data['mc_correct_weight']
             else:
                 node._mc_correct_weight = update_data['mc_correct_weight']
             print(f"      📊 Updated MC correct weight: {getattr(node, '_mc_correct_weight', 0)}")
         
         if 'nb_correct_weight' in update_data:
             if hasattr(node, '_nb_correct_weight'):
-                node._nb_correct_weight += update_data['nb_correct_weight']
+                node._nb_correct_weight = update_data['nb_correct_weight']
             else:
                 node._nb_correct_weight = update_data['nb_correct_weight']
             print(f"      📊 Updated NB correct weight: {getattr(node, '_nb_correct_weight', 0)}")
