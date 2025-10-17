@@ -312,6 +312,131 @@ def main():
     print(f"Split events captured: {len(split_events)}")
     print(f"Leaf updates captured: {len(leaf_updates)}")
     print(f"Total instances processed: {instance_count}")
+    
+    # ========================================================================
+    # PREDICTION PHASE - Make predictions on new samples
+    # ========================================================================
+    print("\n" + "="*80)
+    print("🔮 MAKING PREDICTIONS ON TEST SAMPLES")
+    print("="*80)
+    
+    # Generate test samples (different seed for testing)
+    test_dataset = synth.Agrawal(classification_function=0, seed=999)
+    test_samples = list(test_dataset.take(10))  # Get 10 test samples
+    
+    predictions = []
+    
+    for sample_idx, (x, y_true) in enumerate(test_samples, 1):
+        # Make prediction
+        y_pred = model.predict_one(x)
+        y_proba = model.predict_proba_one(x)
+        
+        # Find which leaf node made the prediction
+        # Traverse tree to find the leaf
+        current_node = model._root
+        path = []
+        
+        while current_node is not None:
+            node_id = getattr(current_node, 'node_id', 'unknown')
+            node_type = type(current_node).__name__
+            path.append({'node_id': node_id, 'node_type': node_type})
+            
+            # If it's a leaf, stop
+            if not hasattr(current_node, 'children'):
+                break
+            
+            # If it's a branch, traverse to child
+            if hasattr(current_node, 'branch_no'):
+                branch_idx = current_node.branch_no(x)
+                if hasattr(current_node, 'children') and branch_idx < len(current_node.children):
+                    current_node = current_node.children[branch_idx]
+                else:
+                    break
+            else:
+                break
+        
+        # The last node in path is the leaf that made prediction
+        prediction_node = path[-1] if path else {'node_id': 'unknown', 'node_type': 'unknown'}
+        
+        # Get branch decision details
+        branch_decision = None
+        if len(path) > 1:
+            split_node = model._root
+            if hasattr(split_node, 'feature') and hasattr(split_node, 'threshold'):
+                feature_val = x[split_node.feature]
+                if feature_val <= split_node.threshold:
+                    branch_decision = f"{split_node.feature} <= {split_node.threshold} (value: {feature_val:.2f})"
+                else:
+                    branch_decision = f"{split_node.feature} > {split_node.threshold} (value: {feature_val:.2f})"
+        
+        # Build prediction record
+        prediction_record = {
+            'sample_id': sample_idx,
+            'input_features': {k: float(v) if isinstance(v, (int, float)) else v for k, v in x.items()},
+            'true_label': int(y_true),
+            'predicted_label': int(y_pred) if y_pred is not None else None,
+            'prediction_probabilities': {str(k): float(v) for k, v in y_proba.items()} if y_proba else {},
+            'correct': bool(y_pred == y_true) if y_pred is not None else False,
+            'prediction_node_id': prediction_node['node_id'],
+            'prediction_node_type': prediction_node['node_type'],
+            'decision_path': path,
+            'branch_decision': branch_decision
+        }
+        
+        predictions.append(prediction_record)
+        
+        # Print prediction details
+        print(f"\nSample #{sample_idx}:")
+        print(f"  Input: age={x['age']:.1f}, salary={x['salary']:.0f}, loan={x['loan']:.0f}")
+        print(f"  Branch: {branch_decision}")
+        print(f"  Predicted by: Node {prediction_node['node_id']} ({prediction_node['node_type']})")
+        print(f"  True label: {y_true}, Predicted: {y_pred}, Correct: {y_pred == y_true}")
+        print(f"  Probabilities: {y_proba}")
+    
+    # Calculate accuracy
+    accuracy = sum(1 for p in predictions if p['correct']) / len(predictions)
+    
+    # Save predictions to JSON
+    predictions_output = {
+        'metadata': {
+            'model_state': {
+                'n_nodes': model.n_nodes,
+                'height': model.height,
+                'n_active_leaves': model.n_active_leaves,
+                'training_instances': instance_count
+            },
+            'test_dataset': {
+                'classification_function': 0,
+                'seed': 999,
+                'n_samples': len(predictions)
+            }
+        },
+        'predictions': predictions,
+        'summary': {
+            'total_samples': len(predictions),
+            'correct_predictions': sum(1 for p in predictions if p['correct']),
+            'accuracy': accuracy,
+            'predictions_per_node': {
+                'node_1': sum(1 for p in predictions if p['prediction_node_id'] == 1),
+                'node_2': sum(1 for p in predictions if p['prediction_node_id'] == 2)
+            }
+        }
+    }
+    
+    predictions_file = 'json_data/predictions_with_nodes.json'
+    with open(predictions_file, 'w') as f:
+        json.dump(predictions_output, f, indent=2)
+    
+    print("\n" + "="*80)
+    print("📊 PREDICTION SUMMARY")
+    print("="*80)
+    print(f"Total predictions: {len(predictions)}")
+    print(f"Correct predictions: {sum(1 for p in predictions if p['correct'])}")
+    print(f"Accuracy: {accuracy:.2%}")
+    print(f"Predictions by Node 1: {predictions_output['summary']['predictions_per_node']['node_1']}")
+    print(f"Predictions by Node 2: {predictions_output['summary']['predictions_per_node']['node_2']}")
+    print(f"\n💾 Predictions saved to: {predictions_file}")
+    
     print("\n🎉 Done!")
 
 

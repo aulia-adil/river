@@ -1,7 +1,7 @@
 {
   "event_type": "leaf_update",
   "iteration": 7,
-  "timestamp": 1760692141.9138105,
+  "timestamp": 1760704982.969675,
   "node_id": 1,
   "node_type": "LeafNaiveBayesAdaptive",
   "leaf_data": {
