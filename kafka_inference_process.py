@@ -99,7 +99,7 @@ class InferenceProcess:
                 
                 update_data = message.value
                 iteration = update_data.get('iteration', 0)
-                
+                 
                 # Only apply if this is the next expected iteration
                 if iteration != self.last_applied_iteration + 1:
                     print(f"⏭️  Skipping out-of-order update (iteration {iteration}, expected {self.last_applied_iteration + 1})")
