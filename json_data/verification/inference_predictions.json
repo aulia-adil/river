@@ -27,7 +27,7 @@
         },
         {
           "node_id": 1,
-          "node_type": "LeafMajorityClass"
+          "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
       "branch_decision": "age <= 63.63636363636363 (value: 25.00)"
@@ -59,7 +59,7 @@
         },
         {
           "node_id": 1,
-          "node_type": "LeafMajorityClass"
+          "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
       "branch_decision": "age <= 63.63636363636363 (value: 61.00)"
@@ -91,7 +91,7 @@
         },
         {
           "node_id": 1,
-          "node_type": "LeafMajorityClass"
+          "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
       "branch_decision": "age <= 63.63636363636363 (value: 45.00)"
@@ -123,7 +123,7 @@
         },
         {
           "node_id": 1,
-          "node_type": "LeafMajorityClass"
+          "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
       "branch_decision": "age <= 63.63636363636363 (value: 33.00)"
@@ -155,7 +155,7 @@
         },
         {
           "node_id": 1,
-          "node_type": "LeafMajorityClass"
+          "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
       "branch_decision": "age <= 63.63636363636363 (value: 49.00)"
@@ -186,7 +186,7 @@
         },
         {
           "node_id": 2,
-          "node_type": "LeafMajorityClass"
+          "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
       "branch_decision": "age > 63.63636363636363 (value: 66.00)"
@@ -218,7 +218,7 @@
         },
         {
           "node_id": 1,
-          "node_type": "LeafMajorityClass"
+          "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
       "branch_decision": "age <= 63.63636363636363 (value: 49.00)"
@@ -250,7 +250,7 @@
         },
         {
           "node_id": 1,
-          "node_type": "LeafMajorityClass"
+          "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
       "branch_decision": "age <= 63.63636363636363 (value: 33.00)"
@@ -281,7 +281,7 @@
         },
         {
           "node_id": 2,
-          "node_type": "LeafMajorityClass"
+          "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
       "branch_decision": "age > 63.63636363636363 (value: 77.00)"
@@ -312,7 +312,7 @@
         },
         {
           "node_id": 2,
-          "node_type": "LeafMajorityClass"
+          "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
       "branch_decision": "age > 63.63636363636363 (value: 64.00)"

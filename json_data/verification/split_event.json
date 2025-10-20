@@ -1,6 +1,7 @@
 {
   "event_type": "split",
   "original_leaf_id": 0,
+  "splitter_type": "GaussianSplitter",
   "split_node": {
     "node_id": 3,
     "node_type": "NumericBinaryBranch",

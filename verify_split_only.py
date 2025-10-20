@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 from river import tree
 from river.datasets import synth
+from river.tree.nodes.htc_nodes import LeafNaiveBayesAdaptive
 
 # Output directories
 Path("json_data/verification").mkdir(parents=True, exist_ok=True)
@@ -46,6 +47,15 @@ def split_callback(split_info):
     if hasattr(new_split_node, 'threshold'):
         branch_params['threshold'] = float(getattr(new_split_node, 'threshold'))
     
+    # CRITICAL: Capture the splitter type so we can reconstruct it
+    splitter_type = None
+    if new_leaves and hasattr(new_leaves[0], 'splitter') and new_leaves[0].splitter is not None:
+        splitter_type = type(new_leaves[0].splitter).__name__
+    # CRITICAL: Capture the splitter type so we can reconstruct it
+    splitter_type = None
+    if new_leaves and hasattr(new_leaves[0], 'splitter') and new_leaves[0].splitter is not None:
+        splitter_type = type(new_leaves[0].splitter).__name__
+    
     # Extract new leaf data
     new_leaves_data = []
     for idx, leaf in enumerate(new_leaves):
@@ -63,6 +73,7 @@ def split_callback(split_info):
     split_data = {
         'event_type': 'split',
         'original_leaf_id': getattr(original_leaf, 'node_id', 0),
+        'splitter_type': splitter_type,  # Add splitter type to the event
         'split_node': {
             'node_id': getattr(new_split_node, 'node_id', None),
             'node_type': split_node_type,
@@ -205,20 +216,23 @@ def reconstruct_and_predict():
     
     split_node_info = split_data['split_node']
     new_leaves_info = split_data['new_leaves']
+    splitter_type = split_data.get('splitter_type')
     
     print(f"\nApplying split event:")
     print(f"  Split node ID: {split_node_info['node_id']}")
     print(f"  Split type: {split_node_info['node_type']}")
     print(f"  Feature: {split_node_info['branch_params']['feature']}")
     print(f"  Threshold: {split_node_info['branch_params']['threshold']}")
+    print(f"  Splitter type: {splitter_type}")
     
-    # Create leaves first
+    # Create leaves with proper splitter - this is critical!
     leaves = []
     for leaf_info in new_leaves_info:
         stats = {int(k): v for k, v in leaf_info['stats'].items()}
-        leaf = LeafMajorityClass(stats=stats, depth=leaf_info['depth'], splitter=None)
+        # Use the model's splitter (same as _new_leaf does)
+        leaf = LeafNaiveBayesAdaptive(stats=stats, depth=leaf_info['depth'], splitter=inference_model.splitter)
         leaves.append(leaf)
-        print(f"  Created leaf: node_id will be {leaf_info['node_id']}, stats={stats}")
+        print(f"  Created leaf: node_id will be {leaf_info['node_id']}, stats={stats}, splitter={type(leaf.splitter).__name__}")
     
     # Create split node with leaves
     stats_dict = {int(k): v for k, v in split_node_info['stats'].items()}
