@@ -95,7 +95,34 @@ class InferenceProcess:
         print(f"✅ Split event applied successfully")
         print(f"   Model state: {self.model.n_nodes} nodes, height {self.model.height}")
         print()
-    
+
+        # Check all nodes
+        for node_id, node in self.model._node_registry.items():
+            print(f"   Node ID: {node_id}, Type: {type(node).__name__}")
+            if hasattr(node, 'stats'):
+                print(f"      Stats: {node.stats}")
+                print(f"      Total weight: {node.total_weight}")
+                if hasattr(node, 'depth'):
+                    print(f"      Depth: {node.depth}")
+            if hasattr(node, 'feature'):
+                print(f"      Feature: {node.feature}")
+            if hasattr(node, 'threshold'):
+                print(f"      Threshold: {node.threshold}")
+            if hasattr(node, 'value'):
+                print(f"      Value: {node.value}")
+            if hasattr(node, 'children'):
+                print(f"      Children count: {len(node.children)}")
+            print()
+
+            if hasattr(node, 'splitters') and node.splitters is not None:
+                for feat, splitter in node.splitters.items():
+                    print(f"      Splitter for feature '{feat}': {type(splitter).__name__}")
+                    if isinstance(splitter, GaussianSplitter):
+                        print(f"         Distributions: {splitter._dist}")
+                        print(f"         Min per class: {splitter._min_per_class}")
+                        print(f"         Max per class: {splitter._max_per_class}")
+                print()
+
     def _create_split_node(self, split_node_info, children):
         """Create a split node from split event data with children"""
         node_type = split_node_info['node_type']
@@ -148,9 +175,9 @@ class InferenceProcess:
         stats = {int(k): v for k, v in leaf_info['stats'].items()}
         depth = leaf_info.get('depth', 0)
         
-        # Create leaf node (using LeafMajorityClass for now)
-        leaf = LeafMajorityClass(stats=stats, depth=depth, splitter=None)
-        
+        # Create leaf node using naive Bayes adaptive
+        leaf = LeafNaiveBayesAdaptive(stats=stats, depth=leaf_info['depth'], splitter=inference.splitter)
+
         return leaf
     
     def apply_leaf_update(self, update_data):
@@ -236,8 +263,8 @@ class InferenceProcess:
                     
                     splitter._min_per_class = {int(k): v for k, v in min_per_class.items()}
                     splitter._max_per_class = {int(k): v for k, v in max_per_class.items()}
-    
-    def load_split_events(self, split_dir='json_data/split_event'):
+
+    def load_split_events(self, split_dir='json_data/verification'):
         """Load all split events from directory"""
         split_files = sorted(Path(split_dir).glob('split_*.json'))
         
@@ -445,7 +472,7 @@ def main():
     inference = InferenceProcess()
     
     # Load split events
-    inference.load_split_events('json_data/split_event')
+    inference.load_split_events('json_data/verification')
     
     # Load leaf updates (all 10 updates)
     inference.load_leaf_updates('json_data/update_leaf', max_updates=10)

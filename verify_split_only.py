@@ -51,10 +51,6 @@ def split_callback(split_info):
     splitter_type = None
     if new_leaves and hasattr(new_leaves[0], 'splitter') and new_leaves[0].splitter is not None:
         splitter_type = type(new_leaves[0].splitter).__name__
-    # CRITICAL: Capture the splitter type so we can reconstruct it
-    splitter_type = None
-    if new_leaves and hasattr(new_leaves[0], 'splitter') and new_leaves[0].splitter is not None:
-        splitter_type = type(new_leaves[0].splitter).__name__
     
     # Extract new leaf data
     new_leaves_data = []
