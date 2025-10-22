@@ -176,7 +176,9 @@ class InferenceProcess:
         depth = leaf_info.get('depth', 0)
         print("leaf_info:", leaf_info)
         # Create leaf node using naive Bayes adaptive
-        leaf = LeafNaiveBayesAdaptive(stats=stats, depth=leaf_info['depth'], splitter=None)
+        # CRITICAL: Use model's splitter template, NOT None!
+        # This is what HoeffdingTree._new_leaf() does (line 411)
+        leaf = LeafNaiveBayesAdaptive(stats=stats, depth=leaf_info['depth'], splitter=self.model.splitter)
 
         return leaf
     
@@ -249,6 +251,8 @@ class InferenceProcess:
                         n = dist_params['n_samples']
                         mu = dist_params['mu']
                         sigma = dist_params['sigma']
+                        print("JOJO BIZZARE")
+                        print(f"n: {n}, mu: {mu}, sigma: {sigma}")
                         
                         if n > 0:
                             print(f"YOHOHOH   Updating splitter for feature '{feature_name}', class {class_label}: n={n}, mu={mu}, sigma={sigma}")
@@ -256,7 +260,7 @@ class InferenceProcess:
                             splitter._att_dist_per_class[class_label] = Gaussian._from_state(
                                 n=n,
                                 m=mu,
-                                sig=sigma,
+                                sig=111,
                                 ddof=1
                             )
                 
@@ -288,6 +292,7 @@ class InferenceProcess:
     def load_leaf_updates(self, update_dir='json_data/update_leaf', max_updates=None):
         """Load leaf updates from directory"""
         update_files = sorted(Path(update_dir).glob('update_leaf_*.json'))
+        print(f"update_files: {update_files}")
         
         if max_updates:
             update_files = update_files[:max_updates]
@@ -301,7 +306,9 @@ class InferenceProcess:
         for update_file in update_files:
             with open(update_file, 'r') as f:
                 update_data = json.load(f)
-            
+            print("JYOHOHO")
+            print(f"update_file: {update_file}")
+            print(update_data)
             self.apply_leaf_update(update_data)
         
         print(f"\n✅ Applied {len(update_files)} leaf updates")

@@ -266,12 +266,18 @@ def main():
     # Train until we have split + 10 leaf updates
     instance_count = 0
     max_instances = 10000  # Safety limit
+
+    threshold = 600
     
     for x, y in dataset:
         instance_count += 1
         
         # Train on instance
         model.learn_one(x, y)
+
+        if instance_count > threshold:
+            print("JOBRO")
+            print(f"x: {x}, y: {y}")
         
         # Stop when we have captured everything we need
         if split_occurred and leaf_updates_after_split >= max_leaf_updates_after_split:
