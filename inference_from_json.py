@@ -174,9 +174,9 @@ class InferenceProcess:
         """Create a leaf node from leaf information"""
         stats = {int(k): v for k, v in leaf_info['stats'].items()}
         depth = leaf_info.get('depth', 0)
-        
+        print("leaf_info:", leaf_info)
         # Create leaf node using naive Bayes adaptive
-        leaf = LeafNaiveBayesAdaptive(stats=stats, depth=leaf_info['depth'], splitter=inference.splitter)
+        leaf = LeafNaiveBayesAdaptive(stats=stats, depth=leaf_info['depth'], splitter=None)
 
         return leaf
     
@@ -214,6 +214,7 @@ class InferenceProcess:
         
         # Update splitters (feature distributions)
         if 'splitters' in leaf_data and leaf_data['splitters']:
+            print("JOJO leaf_data['splitters']:", leaf_data['splitters'])
             self._update_splitters(node, leaf_data['splitters'])
         
         print(f"   ✅ Updated node {node_id}: stats={new_stats}, total_weight={leaf_data['total_weight']}")
@@ -233,9 +234,11 @@ class InferenceProcess:
                     node.splitters[feature_name] = GaussianSplitter()
                 
                 splitter = node.splitters[feature_name]
-                
-                # Update Gaussian distributions
-                if hasattr(splitter, '_dist'):
+                print("TESTING APAKAH MASUK")
+                # Check all attr of splitter
+                print(f"   _att_dist_per_class: {getattr(splitter, '_att_dist_per_class', None)}")
+                # Update Gaussian distribution
+                if hasattr(splitter, '_att_dist_per_class'):
                     from river.proba import Gaussian
                     
                     distributions = gaussian_data.get('distributions', {})
@@ -248,8 +251,9 @@ class InferenceProcess:
                         sigma = dist_params['sigma']
                         
                         if n > 0:
+                            print(f"YOHOHOH   Updating splitter for feature '{feature_name}', class {class_label}: n={n}, mu={mu}, sigma={sigma}")
                             # Use _from_state for deterministic reconstruction
-                            splitter._dist[class_label] = Gaussian._from_state(
+                            splitter._att_dist_per_class[class_label] = Gaussian._from_state(
                                 n=n,
                                 m=mu,
                                 sig=sigma,
