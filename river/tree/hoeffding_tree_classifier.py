@@ -251,44 +251,14 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
             print(f"   Previous weight: {previous_weight:.1f} → Current weight: {current_weight:.1f}")
             print(f"   Threshold: {self.leaf_update_threshold} (multiple #{current_multiple})")
             
-            # Prepare leaf update information
-            leaf_update_info = {
-                'gate_type': 'leaf_update',
-                'node_id': node_id,
-                'node_type': type(node).__name__,
-                'previous_weight': previous_weight,
-                'current_weight': current_weight,
-                'threshold': self.leaf_update_threshold,
-                'multiple_reached': current_multiple,
-                'total_instances_reached': current_multiple * self.leaf_update_threshold,
-                
-                # Complete leaf data for Kafka
-                'leaf_data': {
-                    'depth': getattr(node, 'depth', 0),
-                    'stats': dict(getattr(node, 'stats', {})),
-                    'total_weight': current_weight,
-                    'is_active': getattr(node, 'is_active', lambda: False)(),
-                    
-                    # Naive Bayes performance data
-                    'naive_bayes': {
-                        'mc_correct_weight': getattr(node, '_mc_correct_weight', 0),
-                        'nb_correct_weight': getattr(node, '_nb_correct_weight', 0),
-                        'uses_naive_bayes': (
-                            getattr(node, '_nb_correct_weight', 0) >= 
-                            getattr(node, '_mc_correct_weight', 0)
-                        )
-                    },
-                    
-                    # Splitter data for complete state
-                    'splitters': self._extract_splitter_data_for_callback(node)
-                },
-                
-                'timestamp': __import__('time').time(),
-                'tree_id': id(self)
-            }
+            # Use create_update_payload to get the node state
+            update_payload = self.create_update_payload(node_id, update_type='complete_node')
             
+            if update_payload is None:
+                print(f"   ❌ GATE 2 ERROR: Could not create update payload for node {node_id}")
+                return
             try:
-                self.leaf_update_callback(leaf_update_info)
+                self.leaf_update_callback(update_payload)
                 print(f"   ✅ GATE 2 CALLBACK: Executed successfully")
             except Exception as e:
                 print(f"   ❌ GATE 2 CALLBACK ERROR: {e}")
@@ -730,7 +700,7 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
             return True
         return False
     
-    def apply_distributed_update(self, node_id, update_payload):
+    def apply_distributed_update(self, update_payload):
         """Apply updates from distributed training processes to a specific node.
         
         This method allows nodes to receive and apply updates from other distributed 
@@ -754,6 +724,7 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         bool
             True if update was successfully applied, False otherwise
         """
+        node_id = update_payload.get('node_id')
         node = self.get_node_by_id(node_id)
         if node is None:
             print(f"❌ Node {node_id} not found in registry")
