@@ -109,7 +109,6 @@ dmypy.json
 .idea
 
 # For convenience
-/*.ipynb
 /*.csv*
 /*.arff
 /*.pkl
