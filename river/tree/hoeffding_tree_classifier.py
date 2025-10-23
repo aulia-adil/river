@@ -1114,3 +1114,290 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         
         print(f"   ✅ Payload created with {len(payload['data'])} data sections")
         return payload
+    
+    def apply_split_event(self, split_data):
+        """Apply a split event to reconstruct tree structure from distributed training.
+        
+        This method allows an inference process to reconstruct the tree structure
+        by applying split events received from a distributed training process.
+        
+        Parameters
+        ----------
+        split_data : dict
+            Dictionary containing split event information with the following structure:
+            {
+                'original_leaf_id': int,
+                'split_node': {
+                    'node_id': int,
+                    'node_type': str,
+                    'branch_params': dict,
+                    'stats': dict,
+                    'depth': int
+                },
+                'new_leaves': [
+                    {
+                        'node_id': int,
+                        'stats': dict,
+                        'depth': int
+                    },
+                    ...
+                ]
+            }
+        
+        Returns
+        -------
+        bool
+            True if split event was successfully applied, False otherwise
+        """
+        print("=" * 70)
+        print("📥 APPLYING SPLIT EVENT")
+        print("=" * 70)
+        
+        original_leaf_id = split_data['original_leaf_id']
+        split_node_info = split_data['split_node']
+        new_leaves_info = split_data['new_leaves']
+        
+        print(f"Original leaf ID: {original_leaf_id}")
+        print(f"Split node ID: {split_node_info['node_id']}")
+        print(f"Split node type: {split_node_info['node_type']}")
+        print(f"Branch params: {split_node_info['branch_params']}")
+        print(f"New leaves: {[leaf['node_id'] for leaf in new_leaves_info]}")
+        print(f"   📊 Split data: {split_data}")
+        print()
+        
+        try:
+            # Create new leaf children FIRST
+            new_leaves = []
+            for leaf_info in new_leaves_info:
+                leaf = self._create_leaf_from_info(leaf_info)
+                new_leaves.append(leaf)
+                
+            # Create the split node with children
+            # Note: The children are attached during construction (left/right params)
+            split_node = self._create_split_node(split_node_info, new_leaves)
+            
+            # Verify children are attached (for debugging)
+            print(f"   Split node has {len(split_node.children)} children:")
+            for i, child in enumerate(split_node.children):
+                child_id = new_leaves_info[i]['node_id']
+                print(f"      Child {i}: {type(child).__name__} (will be node_id={child_id})")
+            
+            # Replace the original leaf with the new split node
+            if self._root is None or original_leaf_id == 0:
+                # Root split case
+                self._root = split_node
+                print(f"✅ Replaced root with split node ID={split_node_info['node_id']}")
+            else:
+                # Non-root split: find parent and replace child
+                parent_node, child_index = self._find_parent_and_index(original_leaf_id)
+                
+                if parent_node is not None:
+                    # Replace the child at the found index
+                    parent_node.children[child_index] = split_node
+                    print(f"✅ Replaced child at index {child_index} of parent node ID={getattr(parent_node, 'node_id', 'unknown')}")
+                    print(f"   Original leaf ID: {original_leaf_id} → New split node ID: {split_node_info['node_id']}")
+                else:
+                    print(f"⚠️  Warning: Could not find parent for leaf ID {original_leaf_id}")
+                    print(f"   This may indicate the tree structure is inconsistent")
+            
+            # Remove the original leaf from registry (it's being replaced)
+            if original_leaf_id in self._node_registry:
+                old_leaf = self._node_registry.pop(original_leaf_id)
+                print(f"   🗑️  Removed original leaf ID={original_leaf_id} from registry")
+            
+            # Register new nodes in the model's node registry
+            # This assigns node_id attributes and adds to registry for O(1) lookup
+            self._register_node(split_node, split_node_info['node_id'])
+            for leaf, leaf_info in zip(new_leaves, new_leaves_info):
+                self._register_node(leaf, leaf_info['node_id'])
+            print(f"   Registry now contains: {list(self._node_registry.keys())}")
+            
+            print(f"✅ Split event applied successfully")
+            print(f"   Model state: {self.n_nodes} nodes, height {self.height}")
+            print()
+
+            # Check all nodes
+            for node_id, node in self._node_registry.items():
+                print(f"   Node ID: {node_id}, Type: {type(node).__name__}")
+                if hasattr(node, 'stats'):
+                    print(f"      Stats: {node.stats}")
+                    print(f"      Total weight: {node.total_weight}")
+                    if hasattr(node, 'depth'):
+                        print(f"      Depth: {node.depth}")
+                if hasattr(node, 'feature'):
+                    print(f"      Feature: {node.feature}")
+                if hasattr(node, 'threshold'):
+                    print(f"      Threshold: {node.threshold}")
+                if hasattr(node, 'value'):
+                    print(f"      Value: {node.value}")
+                if hasattr(node, 'children'):
+                    print(f"      Children count: {len(node.children)}")
+                print()
+
+                if hasattr(node, 'splitters') and node.splitters is not None:
+                    for feat, splitter in node.splitters.items():
+                        print(f"      Splitter for feature '{feat}': {type(splitter).__name__}")
+                        if isinstance(splitter, GaussianSplitter):
+                            print(f"         Distributions: {splitter._att_dist_per_class}")
+                            print(f"         Min per class: {splitter._min_per_class}")
+                            print(f"         Max per class: {splitter._max_per_class}")
+                    print()
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error applying split event: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _create_leaf_from_info(self, leaf_info):
+        """Create a leaf node from leaf information.
+        
+        Parameters
+        ----------
+        leaf_info : dict
+            Dictionary containing leaf information:
+            {
+                'node_id': int,
+                'stats': dict,
+                'depth': int
+            }
+        
+        Returns
+        -------
+        HTLeaf
+            Created leaf node (type depends on leaf_prediction setting)
+        """
+        stats = {int(k): v for k, v in leaf_info['stats'].items()}
+        depth = leaf_info.get('depth', 0)
+        
+        print(f"   Creating leaf from info: {leaf_info}")
+        
+        # Create leaf node based on leaf_prediction setting
+        # CRITICAL: Use self.splitter template, NOT None!
+        # This matches what _new_leaf() does (line 411)
+        if self._leaf_prediction == self._MAJORITY_CLASS:
+            leaf = LeafMajorityClass(stats=stats, depth=depth, splitter=self.splitter)
+        elif self._leaf_prediction == self._NAIVE_BAYES:
+            leaf = LeafNaiveBayes(stats=stats, depth=depth, splitter=self.splitter)
+        else:  # Naive Bayes Adaptive (default)
+            leaf = LeafNaiveBayesAdaptive(stats=stats, depth=depth, splitter=self.splitter)
+
+        return leaf
+    
+    def _create_split_node(self, split_node_info, children):
+        """Create a split node from split event data with children.
+        
+        Parameters
+        ----------
+        split_node_info : dict
+            Dictionary containing split node information:
+            {
+                'node_id': int,
+                'node_type': str,
+                'branch_params': dict,
+                'stats': dict,
+                'depth': int
+            }
+        children : list
+            List of child nodes (leaves or branches)
+        
+        Returns
+        -------
+        DTBranch
+            Created branch node (type depends on node_type)
+        """
+        from .nodes.branch import NumericBinaryBranch, NominalBinaryBranch
+        from .nodes.branch import NumericMultiwayBranch, NominalMultiwayBranch
+        
+        node_type = split_node_info['node_type']
+        branch_params = split_node_info['branch_params']
+        stats = split_node_info.get('stats', {})
+        depth = split_node_info.get('depth', 0)
+        
+        # Convert stats from string keys to int
+        stats_dict = {int(k): v for k, v in stats.items()} if stats else {}
+        
+        if node_type == 'NumericBinaryBranch':
+            node = NumericBinaryBranch(
+                stats=stats_dict,
+                feature=branch_params['feature'],
+                threshold=branch_params['threshold'],
+                depth=depth,
+                left=children[0],
+                right=children[1]
+            )
+        elif node_type == 'NominalBinaryBranch':
+            node = NominalBinaryBranch(
+                stats=stats_dict,
+                feature=branch_params['feature'],
+                value=branch_params['value'],
+                depth=depth,
+                left=children[0],
+                right=children[1]
+            )
+        elif node_type == 'NumericMultiwayBranch':
+            node = NumericMultiwayBranch(
+                stats=stats_dict,
+                feature=branch_params['feature'],
+                depth=depth,
+                *children  # Multiway branches accept variable children
+            )
+        elif node_type == 'NominalMultiwayBranch':
+            node = NominalMultiwayBranch(
+                stats=stats_dict,
+                feature=branch_params['feature'],
+                depth=depth,
+                *children
+            )
+        else:
+            raise ValueError(f"Unknown split node type: {node_type}")
+        
+        return node
+    
+    def _find_parent_and_index(self, target_node_id):
+        """Find the parent node and child index for a given node ID.
+        
+        This method traverses the tree to find which parent node contains
+        the target node as a child, and at which index.
+        
+        Parameters
+        ----------
+        target_node_id : int
+            The ID of the node to find the parent for
+        
+        Returns
+        -------
+        tuple (DTBranch, int) or (None, None)
+            The parent node and the index of the target node in parent's children,
+            or (None, None) if not found
+        """
+        if self._root is None:
+            return None, None
+        
+        # If target is root, it has no parent
+        if hasattr(self._root, 'node_id') and self._root.node_id == target_node_id:
+            return None, None
+        
+        # BFS traversal to find the parent
+        from collections import deque
+        queue = deque([self._root])
+        
+        while queue:
+            current = queue.popleft()
+            
+            # Check if this node is a branch (has children)
+            if hasattr(current, 'children') and current.children:
+                # Check each child
+                for idx, child in enumerate(current.children):
+                    # Found it!
+                    if hasattr(child, 'node_id') and child.node_id == target_node_id:
+                        return current, idx
+                    
+                    # Add child to queue for further traversal
+                    if hasattr(child, 'children'):
+                        queue.append(child)
+        
+        # Not found
+        return None, None
