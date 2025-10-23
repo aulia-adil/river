@@ -36,6 +36,11 @@ class HTLeaf(Leaf, abc.ABC):
         self._last_split_attempt_at = self.total_weight
 
     @property
+    def splitter(self):
+        """Get the splitter template for this leaf."""
+        return self.m
+
+    @property
     @abc.abstractmethod
     def total_weight(self) -> float:
         pass

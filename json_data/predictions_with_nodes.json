@@ -1,10 +1,10 @@
 {
   "metadata": {
     "model_state": {
-      "n_nodes": 3,
-      "height": 2,
-      "n_active_leaves": 2,
-      "training_instances": 610
+      "n_nodes": 9,
+      "height": 5,
+      "n_active_leaves": 5,
+      "training_instances": 10000
     },
     "test_dataset": {
       "classification_function": 0,
@@ -27,13 +27,13 @@
         "loan": 439097.1802125269
       },
       "true_label": 1,
-      "predicted_label": 0,
+      "predicted_label": 1,
       "prediction_probabilities": {
-        "0": 0.9999999999828617,
-        "1": 1.7140380974756708e-11
+        "0": 0.0,
+        "1": 1.0
       },
-      "correct": false,
-      "prediction_node_id": 1,
+      "correct": true,
+      "prediction_node_id": 4,
       "prediction_node_type": "LeafNaiveBayesAdaptive",
       "decision_path": [
         {
@@ -41,7 +41,11 @@
           "node_type": "NumericBinaryBranch"
         },
         {
-          "node_id": 1,
+          "node_id": 6,
+          "node_type": "NumericBinaryBranch"
+        },
+        {
+          "node_id": 4,
           "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
@@ -61,13 +65,13 @@
         "loan": 26572.777711235285
       },
       "true_label": 1,
-      "predicted_label": 0,
+      "predicted_label": 1,
       "prediction_probabilities": {
-        "0": 1.0,
-        "1": 2.9073428155694673e-23
+        "0": 0.0,
+        "1": 1.0
       },
-      "correct": false,
-      "prediction_node_id": 1,
+      "correct": true,
+      "prediction_node_id": 11,
       "prediction_node_type": "LeafNaiveBayesAdaptive",
       "decision_path": [
         {
@@ -75,7 +79,19 @@
           "node_type": "NumericBinaryBranch"
         },
         {
-          "node_id": 1,
+          "node_id": 6,
+          "node_type": "NumericBinaryBranch"
+        },
+        {
+          "node_id": 9,
+          "node_type": "NumericBinaryBranch"
+        },
+        {
+          "node_id": 12,
+          "node_type": "NumericBinaryBranch"
+        },
+        {
+          "node_id": 11,
           "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
@@ -98,10 +114,10 @@
       "predicted_label": 0,
       "prediction_probabilities": {
         "0": 1.0,
-        "1": 4.794791117529255e-16
+        "1": 0.0
       },
       "correct": true,
-      "prediction_node_id": 1,
+      "prediction_node_id": 7,
       "prediction_node_type": "LeafNaiveBayesAdaptive",
       "decision_path": [
         {
@@ -109,7 +125,15 @@
           "node_type": "NumericBinaryBranch"
         },
         {
-          "node_id": 1,
+          "node_id": 6,
+          "node_type": "NumericBinaryBranch"
+        },
+        {
+          "node_id": 9,
+          "node_type": "NumericBinaryBranch"
+        },
+        {
+          "node_id": 7,
           "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
@@ -129,13 +153,13 @@
         "loan": 275884.6576644267
       },
       "true_label": 1,
-      "predicted_label": 0,
+      "predicted_label": 1,
       "prediction_probabilities": {
-        "0": 1.0,
-        "1": 8.107817168854854e-16
+        "0": 0.0,
+        "1": 1.0
       },
-      "correct": false,
-      "prediction_node_id": 1,
+      "correct": true,
+      "prediction_node_id": 4,
       "prediction_node_type": "LeafNaiveBayesAdaptive",
       "decision_path": [
         {
@@ -143,7 +167,11 @@
           "node_type": "NumericBinaryBranch"
         },
         {
-          "node_id": 1,
+          "node_id": 6,
+          "node_type": "NumericBinaryBranch"
+        },
+        {
+          "node_id": 4,
           "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
@@ -165,11 +193,11 @@
       "true_label": 0,
       "predicted_label": 0,
       "prediction_probabilities": {
-        "0": 0.9999999999986215,
-        "1": 1.380780441304266e-12
+        "0": 1.0,
+        "1": 0.0
       },
       "correct": true,
-      "prediction_node_id": 1,
+      "prediction_node_id": 7,
       "prediction_node_type": "LeafNaiveBayesAdaptive",
       "decision_path": [
         {
@@ -177,7 +205,15 @@
           "node_type": "NumericBinaryBranch"
         },
         {
-          "node_id": 1,
+          "node_id": 6,
+          "node_type": "NumericBinaryBranch"
+        },
+        {
+          "node_id": 9,
+          "node_type": "NumericBinaryBranch"
+        },
+        {
+          "node_id": 7,
           "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
@@ -234,10 +270,10 @@
       "predicted_label": 0,
       "prediction_probabilities": {
         "0": 1.0,
-        "1": 9.817073820823454e-23
+        "1": 0.0
       },
       "correct": true,
-      "prediction_node_id": 1,
+      "prediction_node_id": 7,
       "prediction_node_type": "LeafNaiveBayesAdaptive",
       "decision_path": [
         {
@@ -245,7 +281,15 @@
           "node_type": "NumericBinaryBranch"
         },
         {
-          "node_id": 1,
+          "node_id": 6,
+          "node_type": "NumericBinaryBranch"
+        },
+        {
+          "node_id": 9,
+          "node_type": "NumericBinaryBranch"
+        },
+        {
+          "node_id": 7,
           "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
@@ -265,13 +309,13 @@
         "loan": 295214.4158584406
       },
       "true_label": 1,
-      "predicted_label": 0,
+      "predicted_label": 1,
       "prediction_probabilities": {
-        "0": 0.9999999998928928,
-        "1": 1.0710148283026778e-10
+        "0": 0.0,
+        "1": 1.0
       },
-      "correct": false,
-      "prediction_node_id": 1,
+      "correct": true,
+      "prediction_node_id": 4,
       "prediction_node_type": "LeafNaiveBayesAdaptive",
       "decision_path": [
         {
@@ -279,7 +323,11 @@
           "node_type": "NumericBinaryBranch"
         },
         {
-          "node_id": 1,
+          "node_id": 6,
+          "node_type": "NumericBinaryBranch"
+        },
+        {
+          "node_id": 4,
           "node_type": "LeafNaiveBayesAdaptive"
         }
       ],
@@ -356,10 +404,10 @@
   ],
   "summary": {
     "total_samples": 10,
-    "correct_predictions": 6,
-    "accuracy": 0.6,
+    "correct_predictions": 10,
+    "accuracy": 1.0,
     "predictions_per_node": {
-      "node_1": 7,
+      "node_1": 0,
       "node_2": 3
     }
   }

@@ -1,51 +1,51 @@
 {
   "event_type": "split",
-  "timestamp": 1761201343.7032154,
-  "original_leaf_id": 0,
+  "timestamp": 1761201344.8934379,
+  "original_leaf_id": 5,
   "split_node": {
-    "node_id": 3,
+    "node_id": 9,
     "node_type": "NumericBinaryBranch",
-    "depth": 0,
+    "depth": 2,
     "stats": {
-      "1": 385.0,
-      "0": 215.0
+      "0": 251.0,
+      "1": 82.26383200371423
     },
     "branch_params": {
       "feature": "age",
-      "threshold": 63.63636363636363
+      "threshold": 58.81818181818181
     }
   },
   "new_leaves": [
     {
-      "node_id": 1,
+      "node_id": 7,
       "node_type": "LeafNaiveBayesAdaptive",
-      "depth": 1,
+      "depth": 3,
       "branch_index": 0,
       "stats": {
-        "1": 281.2230429243434,
-        "0": 215.0
+        "0": 154.17448112835524
       },
-      "total_weight": 496.2230429243434,
+      "total_weight": 154.17448112835524,
       "mc_correct_weight": 0.0,
       "nb_correct_weight": 0.0,
       "splitters": {}
     },
     {
-      "node_id": 2,
+      "node_id": 8,
       "node_type": "LeafNaiveBayesAdaptive",
-      "depth": 1,
+      "depth": 3,
       "branch_index": 1,
       "stats": {
-        "1": 103.77695707565658
+        "0": 6.825518871644761,
+        "1": 39.0
       },
-      "total_weight": 103.77695707565658,
+      "total_weight": 45.82551887164476,
       "mc_correct_weight": 0.0,
       "nb_correct_weight": 0.0,
       "splitters": {}
     }
   ],
   "parent_context": {
-    "parent_node_id": null,
-    "parent_branch": null
+    "parent_node_id": 6,
+    "parent_branch": 1
   }
 }
