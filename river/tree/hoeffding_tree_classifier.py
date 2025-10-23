@@ -242,6 +242,7 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         # Check if we've crossed a multiple threshold
         previous_multiple = int(previous_weight // self.leaf_update_threshold)
         current_multiple = int(current_weight // self.leaf_update_threshold)
+        print(f"node {getattr(node, 'node_id', 'unknown')}, previous_multiple: {previous_multiple}, current_multiple: {current_multiple}")
         
         if current_multiple > previous_multiple:
             # We've crossed a threshold!
@@ -779,6 +780,7 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         # Update class statistics
         if 'stats' in update_data:
             new_stats = update_data['stats']
+            print(f"update_data: {update_data}")
             print(f"      Current stats: {dict(getattr(node, 'stats', {}))}")
             print(f"      New stats to sync: {new_stats}")
             
@@ -816,14 +818,33 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
             print(f"      ⚠️ Node has no splitters attribute")
             return False
         
+        # Ensure splitters dict exists (it might be None if leaf was deactivated)
+        if node.splitters is None:
+            print(f"      ℹ️  Node splitters is None, activating node...")
+            node.activate()
+        
         splitters_updates = update_data.get('splitters', {})
         
         for feature_name, splitter_update in splitters_updates.items():
+            # Create splitter if it doesn't exist
             if feature_name not in node.splitters:
-                print(f"      ⚠️ Feature {feature_name} not found in node splitters")
-                continue
+                print(f"      📝 Creating new splitter for feature: {feature_name}")
+                
+                # Determine splitter type from the update data
+                if 'gaussian_data' in splitter_update:
+                    # Create Gaussian splitter
+                    splitter = self.splitter.clone()
+                elif 'nominal_data' in splitter_update:
+                    # Create Nominal splitter
+                    splitter = node.new_nominal_splitter()
+                else:
+                    print(f"      ⚠️ Unknown splitter type for feature {feature_name}")
+                    continue
+                print(f"feature_name: {feature_name}")
+                node.splitters[feature_name] = splitter
+            else:
+                splitter = node.splitters[feature_name]
             
-            splitter = node.splitters[feature_name]
             print(f"      📊 Updating splitter for feature: {feature_name}")
             
             # Update Gaussian splitter data
@@ -837,6 +858,10 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                         print(f"         ⚠️ Splitter has no _att_dist_per_class")
                         continue
                     
+                    # Import required classes
+                    from river.proba import Gaussian
+                    from river import stats
+                    
                     for class_label, class_data in gaussian_data['distributions'].items():
                         # Handle both string and numeric class labels
                         try:
@@ -849,24 +874,21 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                         except (ValueError, AttributeError):
                             class_key = class_label
                         
+                        # Get target parameters
+                        target_mu = class_data.get('mu', 0.0)
+                        target_sigma = class_data.get('sigma', 1.0)
+                        target_n = class_data.get('n_samples', 1.0)
+                        
+                        # Calculate variance from sigma (var = sigma^2)
+                        target_var = target_sigma ** 2
+                        
+                        # Create or update Gaussian distribution
                         if class_key in splitter._att_dist_per_class:
                             dist_obj = splitter._att_dist_per_class[class_key]
                             
                             # For Gaussian distributions, use _from_state for exact synchronization
                             if hasattr(dist_obj, 'mu') and hasattr(dist_obj, 'sigma'):
                                 print(f"            🔄 Synchronizing Gaussian distribution for class {class_key}")
-                                
-                                # Import required classes
-                                from river.proba import Gaussian
-                                from river import stats
-                                
-                                # Get target parameters
-                                target_mu = class_data.get('mu', 0.0)
-                                target_sigma = class_data.get('sigma', 1.0)
-                                target_n = class_data.get('n_samples', 1.0)
-                                
-                                # Calculate variance from sigma (var = sigma^2)
-                                target_var = target_sigma ** 2
                                 
                                 # Use _from_state to create Gaussian with EXACT parameters
                                 # Gaussian._from_state(n, m, sig, ddof)
@@ -889,8 +911,19 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                                     for _ in range(int(class_data.get('n_samples', 0))):
                                         if 'mean' in class_data:
                                             dist_obj.update(class_data['mean'])
-                            
-                            print(f"         ✅ Updated class {class_key} distribution")
+                        else:
+                            # Class doesn't exist yet - create new Gaussian distribution
+                            print(f"            ✨ Creating new Gaussian distribution for class {class_key}")
+                            new_gaussian = Gaussian._from_state(
+                                n=target_n,
+                                m=target_mu,
+                                sig=target_var,
+                                ddof=1
+                            )
+                            splitter._att_dist_per_class[class_key] = new_gaussian
+                            print(f"            ✅ Created Gaussian: μ={new_gaussian.mu:.6f}, σ={new_gaussian.sigma:.6f}, n={new_gaussian.n_samples}")
+                        
+                        print(f"         ✅ Updated class {class_key} distribution")
                 
                 # Update min/max per class
                 if 'min_per_class' in gaussian_data and hasattr(splitter, '_min_per_class'):
@@ -905,6 +938,8 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                                 class_key = float(class_label) if str(class_label).replace('.', '').isdigit() else class_label
                         except (ValueError, AttributeError):
                             class_key = class_label
+                        
+                        # Set min value (take minimum if exists, otherwise set directly)
                         if class_key in splitter._min_per_class:
                             splitter._min_per_class[class_key] = min(
                                 splitter._min_per_class[class_key], min_val
@@ -924,6 +959,8 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                                 class_key = float(class_label) if str(class_label).replace('.', '').isdigit() else class_label
                         except (ValueError, AttributeError):
                             class_key = class_label
+                        
+                        # Set max value (take maximum if exists, otherwise set directly)
                         if class_key in splitter._max_per_class:
                             splitter._max_per_class[class_key] = max(
                                 splitter._max_per_class[class_key], max_val
