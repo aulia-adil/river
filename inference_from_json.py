@@ -184,93 +184,60 @@ class InferenceProcess:
     
     def apply_leaf_update(self, update_data):
         """
-        Apply a leaf update to synchronize leaf statistics
+        Apply a leaf update using the built-in apply_distributed_update method
         
         Args:
-            update_data: Dictionary containing leaf update information
+            update_data: Dictionary containing leaf update information from JSON
         """
         node_id = update_data['node_id']
         leaf_data = update_data['leaf_data']
         
         print(f"📥 Applying leaf update to node {node_id}")
         
-        # Find the node in the registry
-        if hasattr(self.model, '_node_registry'):
-            node = self.model._node_registry.get(node_id)
-            if node is None:
-                print(f"⚠️  Warning: Node {node_id} not found in registry")
-                return
-        else:
-            print(f"⚠️  Warning: Model doesn't have node registry")
+        # Check if node exists
+        node = self.model.get_node_by_id(node_id)
+        if node is None:
+            print(f"⚠️  Warning: Node {node_id} not found in registry")
             return
         
-        # Update stats
-        new_stats = {int(k): v for k, v in leaf_data['stats'].items()}
-        node.stats = new_stats
-        
-        # Update weights
-        if hasattr(node, '_mc_correct_weight'):
-            node._mc_correct_weight = leaf_data.get('mc_correct_weight', 0)
-        if hasattr(node, '_nb_correct_weight'):
-            node._nb_correct_weight = leaf_data.get('nb_correct_weight', 0)
-        
-        # Update splitters (feature distributions)
+        # CRITICAL: Create splitters dict if it doesn't exist and we have splitter data
+        # This is necessary because new leaves start with empty splitters after a split
         if 'splitters' in leaf_data and leaf_data['splitters']:
-            print("JOJO leaf_data['splitters']:", leaf_data['splitters'])
-            self._update_splitters(node, leaf_data['splitters'])
-        
-        print(f"   ✅ Updated node {node_id}: stats={new_stats}, total_weight={leaf_data['total_weight']}")
-    
-    def _update_splitters(self, node, splitters_data):
-        """Update Gaussian distributions in the node's splitters"""
-        if not hasattr(node, 'splitters') or node.splitters is None:
-            # Initialize splitters if they don't exist
-            node.splitters = {}
-        
-        for feature_name, splitter_info in splitters_data.items():
-            if 'gaussian_data' in splitter_info:
-                gaussian_data = splitter_info['gaussian_data']
-                
-                # Create or update Gaussian splitter
+            if not hasattr(node, 'splitters') or node.splitters is None:
+                node.splitters = {}
+            
+            # Create missing splitters (clone from template)
+            for feature_name in leaf_data['splitters'].keys():
                 if feature_name not in node.splitters:
-                    node.splitters[feature_name] = GaussianSplitter()
-                
-                splitter = node.splitters[feature_name]
-                print("TESTING APAKAH MASUK")
-                # Check all attr of splitter
-                print(f"   _att_dist_per_class: {getattr(splitter, '_att_dist_per_class', None)}")
-                # Update Gaussian distribution
-                if hasattr(splitter, '_att_dist_per_class'):
-                    from river.proba import Gaussian
-                    
-                    distributions = gaussian_data.get('distributions', {})
-                    for class_label, dist_params in distributions.items():
-                        class_label = int(class_label)
-                        
-                        # Create Gaussian distribution from state
-                        n = dist_params['n_samples']
-                        mu = dist_params['mu']
-                        sigma = dist_params['sigma']
-                        print("JOJO BIZZARE")
-                        print(f"n: {n}, mu: {mu}, sigma: {sigma}")
-                        
-                        if n > 0:
-                            print(f"YOHOHOH   Updating splitter for feature '{feature_name}', class {class_label}: n={n}, mu={mu}, sigma={sigma}")
-                            # Use _from_state for deterministic reconstruction
-                            splitter._att_dist_per_class[class_label] = Gaussian._from_state(
-                                n=n,
-                                m=mu,
-                                sig=111,
-                                ddof=1
-                            )
-                
-                # Update min/max per class
-                if hasattr(splitter, '_min_per_class'):
-                    min_per_class = gaussian_data.get('min_per_class', {})
-                    max_per_class = gaussian_data.get('max_per_class', {})
-                    
-                    splitter._min_per_class = {int(k): v for k, v in min_per_class.items()}
-                    splitter._max_per_class = {int(k): v for k, v in max_per_class.items()}
+                    print(f"   🔧 Creating splitter for feature '{feature_name}'")
+                    node.splitters[feature_name] = self.model.splitter.clone()
+        
+        # Convert to the format expected by apply_distributed_update
+        update_payload = {
+            'update_type': 'complete_node',
+            'timestamp': update_data.get('timestamp'),
+            'data': {
+                'leaf_stats': {
+                    'stats': {int(k): v for k, v in leaf_data['stats'].items()},
+                    'total_weight': leaf_data.get('total_weight', 0)
+                },
+                'naive_bayes_data': {
+                    'mc_correct_weight': leaf_data.get('mc_correct_weight', 0),
+                    'nb_correct_weight': leaf_data.get('nb_correct_weight', 0)
+                },
+                'splitter_data': {
+                    'splitters': leaf_data.get('splitters', {})
+                }
+            }
+        }
+        
+        # Use the built-in distributed update method
+        success = self.model.apply_distributed_update(node_id, update_payload)
+        
+        if success:
+            print(f"   ✅ Successfully applied update to node {node_id}")
+        else:
+            print(f"   ❌ Failed to apply update to node {node_id}")
 
     def load_split_events(self, split_dir='json_data/verification'):
         """Load all split events from directory"""
