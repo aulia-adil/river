@@ -29,7 +29,7 @@ class HTLeaf(Leaf, abc.ABC):
         self.stats = stats
         self.depth = depth
 
-        self.splitter = splitter
+        self.m = splitter
 
         self.splitters = {}
         self._disabled_attrs = set()
