@@ -29,16 +29,11 @@ class HTLeaf(Leaf, abc.ABC):
         self.stats = stats
         self.depth = depth
 
-        self.m = splitter
+        self.splitter = splitter
 
         self.splitters = {}
         self._disabled_attrs = set()
         self._last_split_attempt_at = self.total_weight
-
-    @property
-    def splitter(self):
-        """Get the splitter template for this leaf."""
-        return self.m
 
     @property
     @abc.abstractmethod

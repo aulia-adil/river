@@ -1,0 +1,51 @@
+{
+    "event_type": "split",
+    "timestamp": 1761214792.5846822,
+    "original_leaf_id": 0,
+    "split_node": {
+        "node_id": 3,
+        "node_type": "NumericBinaryBranch",
+        "depth": 0,
+        "stats": {
+            "1": 385.0,
+            "0": 215.0
+        },
+        "branch_params": {
+            "feature": "age",
+            "threshold": 63.63636363636363
+        }
+    },
+    "new_leaves": [
+        {
+            "node_id": 1,
+            "node_type": "LeafNaiveBayesAdaptive",
+            "depth": 1,
+            "branch_index": 0,
+            "stats": {
+                "1": 281.2230429243434,
+                "0": 215.0
+            },
+            "total_weight": 496.2230429243434,
+            "mc_correct_weight": 0.0,
+            "nb_correct_weight": 0.0,
+            "splitters": {}
+        },
+        {
+            "node_id": 2,
+            "node_type": "LeafNaiveBayesAdaptive",
+            "depth": 1,
+            "branch_index": 1,
+            "stats": {
+                "1": 103.77695707565658
+            },
+            "total_weight": 103.77695707565658,
+            "mc_correct_weight": 0.0,
+            "nb_correct_weight": 0.0,
+            "splitters": {}
+        }
+    ],
+    "parent_context": {
+        "parent_node_id": null,
+        "parent_branch": null
+    }
+}

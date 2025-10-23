@@ -1,0 +1,257 @@
+{
+    "node_id": 0,
+    "update_type": "complete_node",
+    "timestamp": 1761214792.5378478,
+    "source_tree_id": 125604054556096,
+    "data": {
+        "leaf_stats": {
+            "stats": {
+                "1": 188.0,
+                "0": 112.0
+            },
+            "total_weight": 300.0
+        },
+        "splitter_data": {
+            "splitters": {
+                "salary": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "salary",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "1": 20682.655779730332,
+                            "0": 22241.62371528845
+                        },
+                        "max_per_class": {
+                            "1": 149652.35113859095,
+                            "0": 149988.01770619722
+                        },
+                        "distributions": {
+                            "1": {
+                                "n_samples": 188.0,
+                                "mu": 87208.19199165811,
+                                "sigma": 40001.435271019494
+                            },
+                            "0": {
+                                "n_samples": 112.0,
+                                "mu": 87261.09326144982,
+                                "sigma": 38257.32495089822
+                            }
+                        }
+                    }
+                },
+                "commission": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "commission",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "1": 0,
+                            "0": 0
+                        },
+                        "max_per_class": {
+                            "1": 84636.2017495671,
+                            "0": 82763.85451064329
+                        },
+                        "distributions": {
+                            "1": {
+                                "n_samples": 188.0,
+                                "mu": 20062.186674765457,
+                                "sigma": 27598.338491435497
+                            },
+                            "0": {
+                                "n_samples": 112.0,
+                                "mu": 18930.74771531889,
+                                "sigma": 26796.099312973158
+                            }
+                        }
+                    }
+                },
+                "age": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "age",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "1": 20,
+                            "0": 40
+                        },
+                        "max_per_class": {
+                            "1": 80,
+                            "0": 59
+                        },
+                        "distributions": {
+                            "1": {
+                                "n_samples": 188.0,
+                                "mu": 49.632978723404236,
+                                "sigma": 21.592442172996495
+                            },
+                            "0": {
+                                "n_samples": 112.0,
+                                "mu": 49.33035714285714,
+                                "sigma": 5.899134755393442
+                            }
+                        }
+                    }
+                },
+                "elevel": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "elevel",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "1": 0,
+                            "0": 0
+                        },
+                        "max_per_class": {
+                            "1": 4,
+                            "0": 4
+                        },
+                        "distributions": {
+                            "1": {
+                                "n_samples": 188.0,
+                                "mu": 2.2712765957446823,
+                                "sigma": 1.3664523206010701
+                            },
+                            "0": {
+                                "n_samples": 112.0,
+                                "mu": 1.8214285714285714,
+                                "sigma": 1.3833910921250405
+                            }
+                        }
+                    }
+                },
+                "car": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "car",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "1": 1,
+                            "0": 1
+                        },
+                        "max_per_class": {
+                            "1": 20,
+                            "0": 20
+                        },
+                        "distributions": {
+                            "1": {
+                                "n_samples": 188.0,
+                                "mu": 10.23936170212766,
+                                "sigma": 5.542364176045797
+                            },
+                            "0": {
+                                "n_samples": 112.0,
+                                "mu": 11.098214285714283,
+                                "sigma": 5.7295815633085185
+                            }
+                        }
+                    }
+                },
+                "zipcode": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "zipcode",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "1": 0,
+                            "0": 0
+                        },
+                        "max_per_class": {
+                            "1": 8,
+                            "0": 8
+                        },
+                        "distributions": {
+                            "1": {
+                                "n_samples": 188.0,
+                                "mu": 4.015957446808511,
+                                "sigma": 2.446160505247126
+                            },
+                            "0": {
+                                "n_samples": 112.0,
+                                "mu": 4.178571428571429,
+                                "sigma": 2.6583686852887927
+                            }
+                        }
+                    }
+                },
+                "hvalue": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "hvalue",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "1": 0.0,
+                            "0": 0.0
+                        },
+                        "max_per_class": {
+                            "1": 1178517.4526573557,
+                            "0": 1174718.9002491797
+                        },
+                        "distributions": {
+                            "1": {
+                                "n_samples": 188.0,
+                                "mu": 393818.1073587128,
+                                "sigma": 274479.0192660863
+                            },
+                            "0": {
+                                "n_samples": 112.0,
+                                "mu": 379827.2642704737,
+                                "sigma": 284614.31410904165
+                            }
+                        }
+                    }
+                },
+                "hyears": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "hyears",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "1": 1,
+                            "0": 1
+                        },
+                        "max_per_class": {
+                            "1": 30,
+                            "0": 30
+                        },
+                        "distributions": {
+                            "1": {
+                                "n_samples": 188.0,
+                                "mu": 15.436170212765962,
+                                "sigma": 8.830620657129597
+                            },
+                            "0": {
+                                "n_samples": 112.0,
+                                "mu": 15.687500000000007,
+                                "sigma": 8.213405050435691
+                            }
+                        }
+                    }
+                },
+                "loan": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "loan",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "1": 6959.327550450589,
+                            "0": 7673.798957630318
+                        },
+                        "max_per_class": {
+                            "1": 499227.22042722115,
+                            "0": 499797.52196719346
+                        },
+                        "distributions": {
+                            "1": {
+                                "n_samples": 188.0,
+                                "mu": 246565.4070342797,
+                                "sigma": 145289.59864219525
+                            },
+                            "0": {
+                                "n_samples": 112.0,
+                                "mu": 240548.21191413663,
+                                "sigma": 139433.52057452584
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "naive_bayes_data": {
+            "mc_correct_weight": 188.0,
+            "nb_correct_weight": 241.0
+        }
+    }
+}

@@ -566,9 +566,8 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
             # Learn from the instance
             node.learn_one(x, y, w=w, tree=self)
             
-            # 🚪 GATE 2: Check for leaf update threshold notification
-            current_weight = node.total_weight
-            self._check_leaf_update_gate(node, previous_weight, current_weight)
+            # Track whether a split will occur
+            split_occurred = False
             
             if self._growth_allowed and node.is_active():
                 if node.depth >= self.max_depth:  # Max depth reached
@@ -591,7 +590,17 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                         # Check if split actually occurred
                         registry_size_after = self.get_node_registry_size()
                         if registry_size_after > registry_size_before:
+                            split_occurred = True
                             print(f"✅ GATE 1 TRIGGERED: Split occurred! Registry: {registry_size_before} → {registry_size_after} nodes")
+            
+            # 🚪 GATE 2: Only trigger leaf update if NO split occurred
+            # Rationale: If a split happened, the leaf is replaced and no longer exists.
+            # The split callback provides complete information about the structural change.
+            current_weight = node.total_weight
+            if not split_occurred:
+                self._check_leaf_update_gate(node, previous_weight, current_weight)
+            else:
+                print(f"⏭️  GATE 2 SKIPPED: Split occurred, leaf update callback not needed (node replaced)")
         else:
             while True:
                 # Split node encountered a previously unseen categorical value (in a multi-way

@@ -1,0 +1,194 @@
+{
+    "node_id": 1,
+    "update_type": "complete_node",
+    "timestamp": 1761214792.5880172,
+    "source_tree_id": 125604054556096,
+    "data": {
+        "leaf_stats": {
+            "stats": {
+                "1": 281.2230429243434,
+                "0": 219.0
+            },
+            "total_weight": 500.2230429243434
+        },
+        "splitter_data": {
+            "splitters": {
+                "salary": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "salary",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "0": 27039.262267541937
+                        },
+                        "max_per_class": {
+                            "0": 132939.94863119195
+                        },
+                        "distributions": {
+                            "0": {
+                                "n_samples": 4.0,
+                                "mu": 89886.55720332626,
+                                "sigma": 51168.4792564581
+                            }
+                        }
+                    }
+                },
+                "commission": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "commission",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "0": 0
+                        },
+                        "max_per_class": {
+                            "0": 69945.24383349858
+                        },
+                        "distributions": {
+                            "0": {
+                                "n_samples": 4.0,
+                                "mu": 21875.33269849774,
+                                "sigma": 33097.9989405809
+                            }
+                        }
+                    }
+                },
+                "age": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "age",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "0": 43
+                        },
+                        "max_per_class": {
+                            "0": 51
+                        },
+                        "distributions": {
+                            "0": {
+                                "n_samples": 4.0,
+                                "mu": 46.75,
+                                "sigma": 4.349329450233296
+                            }
+                        }
+                    }
+                },
+                "elevel": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "elevel",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "0": 1
+                        },
+                        "max_per_class": {
+                            "0": 4
+                        },
+                        "distributions": {
+                            "0": {
+                                "n_samples": 4.0,
+                                "mu": 3.25,
+                                "sigma": 1.5
+                            }
+                        }
+                    }
+                },
+                "car": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "car",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "0": 2
+                        },
+                        "max_per_class": {
+                            "0": 17
+                        },
+                        "distributions": {
+                            "0": {
+                                "n_samples": 4.0,
+                                "mu": 9.75,
+                                "sigma": 6.18465843842649
+                            }
+                        }
+                    }
+                },
+                "zipcode": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "zipcode",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "0": 2
+                        },
+                        "max_per_class": {
+                            "0": 8
+                        },
+                        "distributions": {
+                            "0": {
+                                "n_samples": 4.0,
+                                "mu": 5.25,
+                                "sigma": 2.753785273643051
+                            }
+                        }
+                    }
+                },
+                "hvalue": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "hvalue",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "0": 0.0
+                        },
+                        "max_per_class": {
+                            "0": 629138.0402275132
+                        },
+                        "distributions": {
+                            "0": {
+                                "n_samples": 4.0,
+                                "mu": 282025.48985384905,
+                                "sigma": 274589.76048744435
+                            }
+                        }
+                    }
+                },
+                "hyears": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "hyears",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "0": 8
+                        },
+                        "max_per_class": {
+                            "0": 29
+                        },
+                        "distributions": {
+                            "0": {
+                                "n_samples": 4.0,
+                                "mu": 22.5,
+                                "sigma": 9.814954576223638
+                            }
+                        }
+                    }
+                },
+                "loan": {
+                    "type": "GaussianSplitter",
+                    "feature_name": "loan",
+                    "gaussian_data": {
+                        "min_per_class": {
+                            "0": 134704.11476249006
+                        },
+                        "max_per_class": {
+                            "0": 448499.8865966475
+                        },
+                        "distributions": {
+                            "0": {
+                                "n_samples": 4.0,
+                                "mu": 303676.4794495093,
+                                "sigma": 130793.2195545367
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "naive_bayes_data": {
+            "mc_correct_weight": 0.0,
+            "nb_correct_weight": 0.0
+        }
+    }
+}
