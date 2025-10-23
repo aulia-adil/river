@@ -789,9 +789,37 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 # Clear existing stats and replace with new ones
                 node.stats.clear()
                 for class_label, count in new_stats.items():
-                    node.stats[class_label] = count
+                    # Convert string keys back to their original type (usually int)
+                    # This handles JSON serialization where int keys become strings
+                    try:
+                        if isinstance(class_label, str) and class_label.lstrip('-').replace('.', '', 1).isdigit():
+                            # Try int first, then float
+                            if '.' in class_label:
+                                class_key = float(class_label)
+                            else:
+                                class_key = int(class_label)
+                        else:
+                            class_key = class_label
+                    except (ValueError, AttributeError):
+                        class_key = class_label
+                    
+                    node.stats[class_key] = count
             else:
-                node.stats = dict(new_stats)
+                # Convert keys when creating new stats dict
+                converted_stats = {}
+                for class_label, count in new_stats.items():
+                    try:
+                        if isinstance(class_label, str) and class_label.lstrip('-').replace('.', '', 1).isdigit():
+                            if '.' in class_label:
+                                class_key = float(class_label)
+                            else:
+                                class_key = int(class_label)
+                        else:
+                            class_key = class_label
+                    except (ValueError, AttributeError):
+                        class_key = class_label
+                    converted_stats[class_key] = count
+                node.stats = converted_stats
             
             print(f"      Synchronized stats: {dict(node.stats)}")
         
