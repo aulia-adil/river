@@ -242,7 +242,6 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         # Check if we've crossed a multiple threshold
         previous_multiple = int(previous_weight // self.leaf_update_threshold)
         current_multiple = int(current_weight // self.leaf_update_threshold)
-        print(f"node {getattr(node, 'node_id', 'unknown')}, previous_multiple: {previous_multiple}, current_multiple: {current_multiple}")
         
         if current_multiple > previous_multiple:
             # We've crossed a threshold!
@@ -277,10 +276,10 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 "feature_name": feature_name
             }
 
-            print(f"      splitter: {splitter}")
+            # print(f"      splitter: {splitter}")
             
             if hasattr(splitter, '_att_dist_per_class'):
-                print(f"      splitter._att_dist_per_class: {splitter._att_dist_per_class}")
+                # print(f"      splitter._att_dist_per_class: {splitter._att_dist_per_class}")
                 
                 # Check if this is a Gaussian splitter by examining the structure
                 # Gaussian: class -> distribution object with methods
@@ -295,21 +294,21 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                     # If it's a dict with string/category keys, it's nominal
                     if isinstance(first_class_dist, dict):
                         is_nominal_splitter = True
-                        print(f"      → Detected NOMINAL splitter for {feature_name}")
+                        # print(f"      → Detected NOMINAL splitter for {feature_name}")
                     # If it has methods like 'mean' or 'get', it's Gaussian (check for common Gaussian attributes)
                     elif (hasattr(first_class_dist, 'mean') or hasattr(first_class_dist, 'get') or 
                           hasattr(first_class_dist, 'n_samples') or 'Gaussian' in str(type(first_class_dist))):
                         is_gaussian_splitter = True
-                        print(f"      → Detected GAUSSIAN splitter for {feature_name}")
+                        # print(f"      → Detected GAUSSIAN splitter for {feature_name}")
                     else:
                         # Fallback: check splitter type name
                         splitter_type_name = type(splitter).__name__
                         if 'Gaussian' in splitter_type_name:
                             is_gaussian_splitter = True
-                            print(f"      → Detected GAUSSIAN splitter for {feature_name} (by splitter type)")
+                            # print(f"      → Detected GAUSSIAN splitter for {feature_name} (by splitter type)")
                         elif 'Nominal' in splitter_type_name:
                             is_nominal_splitter = True
-                            print(f"      → Detected NOMINAL splitter for {feature_name} (by splitter type)")
+                            # print(f"      → Detected NOMINAL splitter for {feature_name} (by splitter type)")
                         else:
                             print(f"      → Unknown splitter type for {feature_name}: {type(first_class_dist)} (splitter: {splitter_type_name})")
                 
@@ -326,7 +325,7 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                     # Distribution parameters per class
                     distributions = {}
                     for class_label, dist_obj in splitter._att_dist_per_class.items():
-                        print(f"      dist_obj for class {class_label}: {dist_obj}")
+                        # print(f"      dist_obj for class {class_label}: {dist_obj}")
                         class_data = {}
                         if hasattr(dist_obj, 'n_samples'):
                             class_data['n_samples'] = dist_obj.n_samples
@@ -361,7 +360,7 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 if hasattr(splitter, '_att_values'):
                     nominal_data['unique_values'] = list(splitter._att_values)
                 splitter_info['nominal_data'] = nominal_data
-                print(f"      → Detected NOMINAL splitter (no _att_dist_per_class) for {feature_name}")
+                # print(f"      → Detected NOMINAL splitter (no _att_dist_per_class) for {feature_name}")
             
             splitters_data[feature_name] = splitter_info
         
@@ -1125,9 +1124,9 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
             print(f"❌ Node {node_id} not found for payload creation")
             return None
         
-        print(f"📦 CREATING UPDATE PAYLOAD:")
-        print(f"   Node ID: {node_id} ({type(node).__name__})")
-        print(f"   Payload type: {update_type}")
+        # print(f"📦 CREATING UPDATE PAYLOAD:")
+        # print(f"   Node ID: {node_id} ({type(node).__name__})")
+        # print(f"   Payload type: {update_type}")
         
         payload = {
             'node_id': node_id,
@@ -1157,7 +1156,7 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 'nb_correct_weight': getattr(node, '_nb_correct_weight', 0),
             }
         
-        print(f"   ✅ Payload created with {len(payload['data'])} data sections")
+        # print(f"   ✅ Payload created with {len(payload['data'])} data sections")
         return payload
     
     def apply_split_event(self, split_data):
