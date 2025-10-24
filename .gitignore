@@ -100,6 +100,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+pickle_data_lab/
 
 # Python Patch
 .venv/
@@ -108,8 +109,9 @@ dmypy.json
 .vscode
 .idea
 
+json_data_lab/
+
 # For convenience
-/*.ipynb
 /*.csv*
 /*.arff
 /*.pkl

@@ -146,6 +146,9 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
         stop_mem_management: bool = False,
         remove_poor_attrs: bool = False,
         merit_preprune: bool = True,
+        split_callback: callable | None = None,
+        leaf_update_callback: callable | None = None,
+        leaf_update_threshold: int = 50,
     ):
         super().__init__(
             max_depth=max_depth,
@@ -173,9 +176,18 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
 
         self.min_branch_fraction = min_branch_fraction
         self.max_share_to_split = max_share_to_split
+        
+        # Dual gate notification system
+        self.split_callback = split_callback              # Gate 1: Split notifications
+        self.leaf_update_callback = leaf_update_callback  # Gate 2: Leaf update notifications
+        self.leaf_update_threshold = leaf_update_threshold # Customizable threshold (n)
 
         # To keep track of the observed classes
         self.classes: set = set()
+        
+        # Node ID system for O(1) lookup capability
+        self._next_node_id = 0
+        self._node_registry = {}  # Maps node_id -> node object
 
     @property
     def _mutable_attributes(self):
@@ -184,8 +196,10 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
     @HoeffdingTree.split_criterion.setter  # type: ignore
     def split_criterion(self, split_criterion):
         if split_criterion not in self._VALID_SPLIT_CRITERIA:
-            print(
-                f"Invalid split_criterion option {split_criterion}', will use default '{self._INFO_GAIN_SPLIT}'"
+            import warnings
+            warnings.warn(
+                f"Invalid split_criterion option '{split_criterion}', will use default '{self._INFO_GAIN_SPLIT}'",
+                UserWarning
             )
             self._split_criterion = self._INFO_GAIN_SPLIT
         else:
@@ -194,12 +208,150 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
     @HoeffdingTree.leaf_prediction.setter  # type: ignore
     def leaf_prediction(self, leaf_prediction):
         if leaf_prediction not in self._VALID_LEAF_PREDICTION:
-            print(
-                f"Invalid leaf_prediction option {leaf_prediction}', will use default '{self._NAIVE_BAYES_ADAPTIVE}'"
+            import warnings
+            warnings.warn(
+                f"Invalid leaf_prediction option '{leaf_prediction}', will use default '{self._NAIVE_BAYES_ADAPTIVE}'",
+                UserWarning
             )
             self._leaf_prediction = self._NAIVE_BAYES_ADAPTIVE
         else:
             self._leaf_prediction = leaf_prediction
+
+    def _generate_node_id(self):
+        """Generate a unique node ID."""
+        node_id = self._next_node_id
+        self._next_node_id += 1
+        return node_id
+    
+    def _register_node(self, node, node_id=None):
+        """Register a node in the node registry for O(1) lookup."""
+        if node_id is None:
+            node_id = self._generate_node_id()
+        
+        # Assign the ID to the node
+        node.node_id = node_id
+        
+        # Register in the lookup table
+        self._node_registry[node_id] = node
+        
+        return node_id
+    
+    def _check_leaf_update_gate(self, node, previous_weight, current_weight):
+        """Check if leaf has reached multiple of threshold instances."""
+        
+        if self.leaf_update_callback is None:
+            return
+        
+        # Check if we've crossed a multiple threshold
+        previous_multiple = int(previous_weight // self.leaf_update_threshold)
+        current_multiple = int(current_weight // self.leaf_update_threshold)
+        
+        if current_multiple > previous_multiple:
+            node_id = getattr(node, 'node_id', None)
+            if node_id is None:
+                raise ValueError(f"Node has no node_id attribute")
+            
+            # Use create_update_payload to get the node state
+            update_payload = self.create_update_payload(node_id, update_type='complete_node')
+            
+            if update_payload is None:
+                raise RuntimeError(f"Could not create update payload for node {node_id}")
+            
+            try:
+                self.leaf_update_callback(update_payload)
+            except Exception as e:
+                raise RuntimeError(f"Leaf update callback failed for node {node_id}: {e}") from e
+    
+    def _extract_splitter_data_for_callback(self, leaf):
+        """Extract splitter data from leaf for callback notifications."""
+        splitters_data = {}
+        
+        if not hasattr(leaf, 'splitters') or not leaf.splitters:
+            return splitters_data
+        
+        for feature_name, splitter in leaf.splitters.items():
+            splitter_info = {
+                "type": type(splitter).__name__,
+                "feature_name": feature_name
+            }
+            
+            if hasattr(splitter, '_att_dist_per_class'):
+                # Check if this is a Gaussian splitter by examining the structure
+                # Gaussian: class -> distribution object with methods
+                # Nominal: class -> dict with category -> count
+                is_gaussian_splitter = False
+                is_nominal_splitter = False
+                
+                if splitter._att_dist_per_class:
+                    # Get the first class distribution to check its type
+                    first_class_dist = next(iter(splitter._att_dist_per_class.values()))
+                    
+                    # If it's a dict with string/category keys, it's nominal
+                    if isinstance(first_class_dist, dict):
+                        is_nominal_splitter = True
+                    # If it has methods like 'mean' or 'get', it's Gaussian (check for common Gaussian attributes)
+                    elif (hasattr(first_class_dist, 'mean') or hasattr(first_class_dist, 'get') or 
+                          hasattr(first_class_dist, 'n_samples') or 'Gaussian' in str(type(first_class_dist))):
+                        is_gaussian_splitter = True
+                    else:
+                        # Fallback: check splitter type name
+                        splitter_type_name = type(splitter).__name__
+                        if 'Gaussian' in splitter_type_name:
+                            is_gaussian_splitter = True
+                        elif 'Nominal' in splitter_type_name:
+                            is_nominal_splitter = True
+                
+                if is_gaussian_splitter:
+                    # Gaussian splitter data
+                    gaussian_data = {}
+                    
+                    # Min/max per class
+                    if hasattr(splitter, '_min_per_class'):
+                        gaussian_data['min_per_class'] = dict(splitter._min_per_class)
+                    if hasattr(splitter, '_max_per_class'):
+                        gaussian_data['max_per_class'] = dict(splitter._max_per_class)
+                    
+                    # Distribution parameters per class
+                    distributions = {}
+                    for class_label, dist_obj in splitter._att_dist_per_class.items():
+                        class_data = {}
+                        if hasattr(dist_obj, 'n_samples'):
+                            class_data['n_samples'] = dist_obj.n_samples
+                        if hasattr(dist_obj, 'mu'):
+                            class_data['mu'] = dist_obj.mu
+                        if hasattr(dist_obj, 'sigma'):
+                            class_data['sigma'] = dist_obj.sigma
+                        distributions[str(class_label)] = class_data
+                    
+                    gaussian_data['distributions'] = distributions
+                    splitter_info['gaussian_data'] = gaussian_data
+                
+                elif is_nominal_splitter:
+                    # Nominal splitter data
+                    nominal_data = {}
+                    if hasattr(splitter, '_total_weight_observed'):
+                        nominal_data['total_weight'] = splitter._total_weight_observed
+                    if hasattr(splitter, '_att_values'):
+                        nominal_data['unique_values'] = list(splitter._att_values)
+                    
+                    # For nominal: _att_dist_per_class is {class: {category: count}}
+                    nominal_data['class_distributions'] = {
+                        str(k): dict(v) for k, v in splitter._att_dist_per_class.items()
+                    }
+                    splitter_info['nominal_data'] = nominal_data
+            
+            # Fallback: Check for nominal attributes without _att_dist_per_class
+            elif hasattr(splitter, '_att_values'):
+                nominal_data = {}
+                if hasattr(splitter, '_total_weight_observed'):
+                    nominal_data['total_weight'] = splitter._total_weight_observed
+                if hasattr(splitter, '_att_values'):
+                    nominal_data['unique_values'] = list(splitter._att_values)
+                splitter_info['nominal_data'] = nominal_data
+            
+            splitters_data[feature_name] = splitter_info
+        
+        return splitters_data
 
     def _new_leaf(self, initial_stats=None, parent=None):
         if initial_stats is None:
@@ -210,11 +362,15 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
             depth = parent.depth + 1
 
         if self._leaf_prediction == self._MAJORITY_CLASS:
-            return LeafMajorityClass(initial_stats, depth, self.splitter)
+            leaf = LeafMajorityClass(initial_stats, depth, self.splitter)
         elif self._leaf_prediction == self._NAIVE_BAYES:
-            return LeafNaiveBayes(initial_stats, depth, self.splitter)
+            leaf = LeafNaiveBayes(initial_stats, depth, self.splitter)
         else:  # Naives Bayes Adaptive (default)
-            return LeafNaiveBayesAdaptive(initial_stats, depth, self.splitter)
+            leaf = LeafNaiveBayesAdaptive(initial_stats, depth, self.splitter)
+        
+        # Assign unique ID and register the leaf
+        self._register_node(leaf)
+        return leaf
 
     def _new_split_criterion(self):
         if self._split_criterion == self._GINI_SPLIT:
@@ -305,12 +461,34 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                         branch, leaf.stats, leaf.depth, *leaves, **kwargs
                     )
 
+                    # Register the new split node with unique ID
+                    self._register_node(new_split)
+                    
+                    # Remove the old leaf from registry since it's being replaced
+                    if hasattr(leaf, 'node_id'):
+                        self.remove_node_from_registry(leaf.node_id)
+
                     self._n_active_leaves -= 1
                     self._n_active_leaves += len(leaves)
                     if parent is None:
                         self._root = new_split
                     else:
                         parent.children[parent_branch] = new_split
+                    
+                    # Invoke split callback if provided
+                    if self.split_callback is not None:
+                        split_info = {
+                            'original_leaf': leaf,
+                            'new_split_node': new_split,
+                            'new_leaves': leaves,
+                            'split_feature': split_decision.feature,
+                            'parent': parent,
+                            'parent_branch': parent_branch
+                        }
+                        try:
+                            self.split_callback(split_info)
+                        except Exception as e:
+                            raise RuntimeError(f"Split callback failed: {e}") from e
 
                 # Manage memory
                 self._enforce_size_limit()
@@ -362,7 +540,15 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
             node = self._root
 
         if isinstance(node, HTLeaf):
+            # Store previous weight for gate checking
+            previous_weight = node.total_weight
+            
+            # Learn from the instance
             node.learn_one(x, y, w=w, tree=self)
+            
+            # Track whether a split will occur
+            split_occurred = False
+            
             if self._growth_allowed and node.is_active():
                 if node.depth >= self.max_depth:  # Max depth reached
                     node.deactivate()
@@ -373,8 +559,23 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                     weight_diff = weight_seen - node.last_split_attempt_at
                     if weight_diff >= self.grace_period:
                         p_branch = p_node.branch_no(x) if isinstance(p_node, DTBranch) else None
+                        
+                        registry_size_before = self.get_node_registry_size()
+                        
                         self._attempt_to_split(node, p_node, p_branch)
                         node.last_split_attempt_at = weight_seen
+                        
+                        # Check if split actually occurred
+                        registry_size_after = self.get_node_registry_size()
+                        if registry_size_after > registry_size_before:
+                            split_occurred = True
+            
+            # Only trigger leaf update if NO split occurred
+            # Rationale: If a split happened, the leaf is replaced and no longer exists.
+            # The split callback provides complete information about the structural change.
+            current_weight = node.total_weight
+            if not split_occurred:
+                self._check_leaf_update_gate(node, previous_weight, current_weight)
         else:
             while True:
                 # Split node encountered a previously unseen categorical value (in a multi-way
@@ -396,7 +597,14 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
                 if isinstance(node, HTLeaf):
                     break
             # Learn from the sample
+            # Store previous weight for gate checking
+            previous_weight = node.total_weight if hasattr(node, 'total_weight') else 0
+            
             node.learn_one(x, y, w=w, tree=self)
+            
+            # 🚪 GATE 2: Check for leaf update threshold notification
+            current_weight = node.total_weight if hasattr(node, 'total_weight') else 0
+            self._check_leaf_update_gate(node, previous_weight, current_weight)
 
         if self._train_weight_seen_by_model % self.memory_estimate_period == 0:
             self._estimate_model_size()
@@ -415,3 +623,676 @@ class HoeffdingTreeClassifier(HoeffdingTree, base.Classifier):
     @property
     def _multiclass(self):
         return True
+    
+    # Node ID System Methods
+    def get_node_by_id(self, node_id):
+        """Get a node by its unique ID - O(1) lookup."""
+        return self._node_registry.get(node_id, None)
+    
+    def get_all_node_ids(self):
+        """Get all registered node IDs."""
+        return list(self._node_registry.keys())
+    
+    def get_node_registry_size(self):
+        """Get the number of nodes in the registry."""
+        return len(self._node_registry)
+    
+    def print_node_registry(self):
+        """Print all nodes in the registry with their IDs."""
+        print(f"\n📋 NODE REGISTRY ({len(self._node_registry)} nodes):")
+        print("=" * 50)
+        
+        for node_id, node in sorted(self._node_registry.items()):
+            node_type = type(node).__name__
+            depth = getattr(node, 'depth', 'N/A')
+            stats = getattr(node, 'stats', {})
+            
+            if hasattr(node, 'feature'):  # Split node
+                feature = getattr(node, 'feature', 'N/A')
+                threshold = getattr(node, 'threshold', 'N/A')
+                print(f"   ID {node_id:3d}: {node_type} | Depth: {depth} | Split: {feature} <= {threshold}")
+            else:  # Leaf node
+                total_weight = getattr(node, 'total_weight', 0)
+                print(f"   ID {node_id:3d}: {node_type} | Depth: {depth} | Weight: {total_weight} | Stats: {stats}")
+    
+    def remove_node_from_registry(self, node_id):
+        """Remove a node from the registry (useful for memory management)."""
+        if node_id in self._node_registry:
+            node = self._node_registry.pop(node_id)
+            return node
+        return None
+    
+    def update_node_in_registry(self, node_id, updated_data):
+        """Update node data and notify about the change for distributed systems."""
+        node = self.get_node_by_id(node_id)
+        if node is not None:
+            # This is where you could trigger Kafka notifications
+            update_info = {
+                'node_id': node_id,
+                'node_type': type(node).__name__,
+                'update_type': 'node_data_update',
+                'updated_data': updated_data,
+                'timestamp': __import__('time').time()
+            }
+            
+            return True
+        return False
+    
+    def apply_distributed_update(self, update_payload):
+        """Apply updates from distributed training processes to a specific node.
+        
+        This method allows nodes to receive and apply updates from other distributed 
+        training processes, enabling synchronized learning across multiple instances.
+        
+        Parameters
+        ----------
+        node_id : int
+            The ID of the node to update
+        update_payload : dict
+            Dictionary containing the update information with the following structure:
+            {
+                'update_type': 'leaf_stats' | 'splitter_data' | 'naive_bayes_data' | 'complete_node',
+                'data': {
+                    # Update-specific data
+                }
+            }
+        
+        Returns
+        -------
+        bool
+            True if update was successfully applied, False otherwise
+        """
+        node_id = update_payload.get('node_id')
+        node = self.get_node_by_id(node_id)
+        if node is None:
+            raise ValueError(f"Node {node_id} not found in registry")
+        
+        update_type = update_payload.get('update_type')
+        update_data = update_payload.get('data', {})
+        
+        try:
+            if update_type == 'leaf_stats':
+                return self._apply_leaf_stats_update(node, update_data)
+            
+            elif update_type == 'splitter_data':
+                return self._apply_splitter_data_update(node, update_data)
+            
+            elif update_type == 'naive_bayes_data':
+                return self._apply_naive_bayes_update(node, update_data)
+            
+            elif update_type == 'complete_node':
+                return self._apply_complete_node_update(node, update_data)
+            
+            elif update_type == 'incremental_stats':
+                return self._apply_incremental_stats_update(node, update_data)
+            
+            else:
+                raise ValueError(f"Unknown update type: {update_type}")
+                
+        except Exception as e:
+            raise RuntimeError(f"Error applying update to node {node_id}: {e}") from e
+    
+    def _apply_leaf_stats_update(self, node, update_data):
+        """Apply leaf statistics updates (class counts, weights)."""
+        
+        # Update class statistics
+        if 'stats' in update_data:
+            new_stats = update_data['stats']
+            
+            # SYNCHRONIZE stats (replace, don't accumulate)
+            if hasattr(node, 'stats'):
+                # Clear existing stats and replace with new ones
+                node.stats.clear()
+                for class_label, count in new_stats.items():
+                    # Convert string keys back to their original type (usually int)
+                    # This handles JSON serialization where int keys become strings
+                    try:
+                        if isinstance(class_label, str) and class_label.lstrip('-').replace('.', '', 1).isdigit():
+                            # Try int first, then float
+                            if '.' in class_label:
+                                class_key = float(class_label)
+                            else:
+                                class_key = int(class_label)
+                        else:
+                            class_key = class_label
+                    except (ValueError, AttributeError):
+                        class_key = class_label
+                    
+                    node.stats[class_key] = count
+            else:
+                # Convert keys when creating new stats dict
+                converted_stats = {}
+                for class_label, count in new_stats.items():
+                    try:
+                        if isinstance(class_label, str) and class_label.lstrip('-').replace('.', '', 1).isdigit():
+                            if '.' in class_label:
+                                class_key = float(class_label)
+                            else:
+                                class_key = int(class_label)
+                        else:
+                            class_key = class_label
+                    except (ValueError, AttributeError):
+                        class_key = class_label
+                    converted_stats[class_key] = count
+                node.stats = converted_stats
+        
+        # Note: total_weight is calculated from stats, so it's updated automatically
+        # when we update the stats above
+        if 'total_weight' in update_data:
+            expected_weight = update_data['total_weight']
+            actual_weight = getattr(node, 'total_weight', 0)
+            
+            if abs(actual_weight - expected_weight) > 0.01:
+                raise ValueError(f"Weight mismatch: expected {expected_weight}, got {actual_weight}")
+        
+        return True
+    
+    def _apply_splitter_data_update(self, node, update_data):
+        """Apply splitter data updates (_att_dist_per_class, etc.)."""
+        
+        if not hasattr(node, 'splitters'):
+            raise AttributeError(f"Node has no splitters attribute")
+        
+        # Ensure splitters dict exists (it might be None if leaf was deactivated)
+        if node.splitters is None:
+            node.activate()
+        
+        splitters_updates = update_data.get('splitters', {})
+        
+        for feature_name, splitter_update in splitters_updates.items():
+            # Create splitter if it doesn't exist
+            if feature_name not in node.splitters:
+                # Determine splitter type from the update data
+                if 'gaussian_data' in splitter_update:
+                    # Create Gaussian splitter
+                    splitter = self.splitter.clone()
+                elif 'nominal_data' in splitter_update:
+                    # Create Nominal splitter
+                    splitter = node.new_nominal_splitter()
+                else:
+                    raise ValueError(f"Unknown splitter type for feature {feature_name}")
+                node.splitters[feature_name] = splitter
+            else:
+                splitter = node.splitters[feature_name]
+            
+            # Update Gaussian splitter data
+            if 'gaussian_data' in splitter_update:
+                gaussian_data = splitter_update['gaussian_data']
+                
+                # Update _att_dist_per_class for Gaussian
+                if 'distributions' in gaussian_data:
+                    if not hasattr(splitter, '_att_dist_per_class'):
+                        raise AttributeError(f"Splitter for {feature_name} has no _att_dist_per_class")
+                    
+                    # Import required classes
+                    from river.proba import Gaussian
+                    from river import stats
+                    
+                    for class_label, class_data in gaussian_data['distributions'].items():
+                        # Handle both string and numeric class labels
+                        try:
+                            if isinstance(class_label, str) and class_label.isdigit():
+                                class_key = int(class_label)
+                            elif isinstance(class_label, (int, float)):
+                                class_key = class_label
+                            else:
+                                class_key = float(class_label) if str(class_label).replace('.', '').isdigit() else class_label
+                        except (ValueError, AttributeError):
+                            class_key = class_label
+                        
+                        # Get target parameters
+                        target_mu = class_data.get('mu', 0.0)
+                        target_sigma = class_data.get('sigma', 1.0)
+                        target_n = class_data.get('n_samples', 1.0)
+                        
+                        # Calculate variance from sigma (var = sigma^2)
+                        target_var = target_sigma ** 2
+                        
+                        # Create or update Gaussian distribution
+                        if class_key in splitter._att_dist_per_class:
+                            dist_obj = splitter._att_dist_per_class[class_key]
+                            
+                            # For Gaussian distributions, use _from_state for exact synchronization
+                            if hasattr(dist_obj, 'mu') and hasattr(dist_obj, 'sigma'):
+                                # Use _from_state to create Gaussian with EXACT parameters
+                                # Gaussian._from_state(n, m, sig, ddof)
+                                # where: n=sample count, m=mean, sig=VARIANCE (not sum!), ddof=degrees of freedom
+                                new_gaussian = Gaussian._from_state(
+                                    n=target_n,
+                                    m=target_mu,
+                                    sig=target_var,  # sig is the variance
+                                    ddof=1
+                                )
+                                
+                                # Replace the distribution
+                                splitter._att_dist_per_class[class_key] = new_gaussian
+                            else:
+                                # For non-Gaussian distributions, try incremental updates
+                                if 'n_samples' in class_data and hasattr(dist_obj, 'update'):
+                                    # Try incremental updates for other types
+                                    for _ in range(int(class_data.get('n_samples', 0))):
+                                        if 'mean' in class_data:
+                                            dist_obj.update(class_data['mean'])
+                        else:
+                            # Class doesn't exist yet - create new Gaussian distribution
+                            new_gaussian = Gaussian._from_state(
+                                n=target_n,
+                                m=target_mu,
+                                sig=target_var,
+                                ddof=1
+                            )
+                            splitter._att_dist_per_class[class_key] = new_gaussian
+                
+                # Update min/max per class
+                if 'min_per_class' in gaussian_data and hasattr(splitter, '_min_per_class'):
+                    for class_label, min_val in gaussian_data['min_per_class'].items():
+                        # Handle both string and numeric class labels
+                        try:
+                            if isinstance(class_label, str) and class_label.isdigit():
+                                class_key = int(class_label)
+                            elif isinstance(class_label, (int, float)):
+                                class_key = class_label
+                            else:
+                                class_key = float(class_label) if str(class_label).replace('.', '').isdigit() else class_label
+                        except (ValueError, AttributeError):
+                            class_key = class_label
+                        
+                        # Set min value (take minimum if exists, otherwise set directly)
+                        if class_key in splitter._min_per_class:
+                            splitter._min_per_class[class_key] = min(
+                                splitter._min_per_class[class_key], min_val
+                            )
+                        else:
+                            splitter._min_per_class[class_key] = min_val
+                
+                if 'max_per_class' in gaussian_data and hasattr(splitter, '_max_per_class'):
+                    for class_label, max_val in gaussian_data['max_per_class'].items():
+                        # Handle both string and numeric class labels
+                        try:
+                            if isinstance(class_label, str) and class_label.isdigit():
+                                class_key = int(class_label)
+                            elif isinstance(class_label, (int, float)):
+                                class_key = class_label
+                            else:
+                                class_key = float(class_label) if str(class_label).replace('.', '').isdigit() else class_label
+                        except (ValueError, AttributeError):
+                            class_key = class_label
+                        
+                        # Set max value (take maximum if exists, otherwise set directly)
+                        if class_key in splitter._max_per_class:
+                            splitter._max_per_class[class_key] = max(
+                                splitter._max_per_class[class_key], max_val
+                            )
+                        else:
+                            splitter._max_per_class[class_key] = max_val
+            
+            # Update Nominal splitter data
+            elif 'nominal_data' in splitter_update:
+                nominal_data = splitter_update['nominal_data']
+                
+                # Update class distributions for nominal
+                if 'class_distributions' in nominal_data:
+                    if not hasattr(splitter, '_att_dist_per_class'):
+                        raise AttributeError(f"Nominal splitter for {feature_name} has no _att_dist_per_class")
+                    
+                    for class_label, category_counts in nominal_data['class_distributions'].items():
+                        # Handle both string and numeric class labels
+                        try:
+                            if isinstance(class_label, str) and class_label.isdigit():
+                                class_key = int(class_label)
+                            elif isinstance(class_label, (int, float)):
+                                class_key = class_label
+                            else:
+                                class_key = float(class_label) if str(class_label).replace('.', '').isdigit() else class_label
+                        except (ValueError, AttributeError):
+                            class_key = class_label
+                        
+                        if class_key not in splitter._att_dist_per_class:
+                            splitter._att_dist_per_class[class_key] = {}
+                        
+                        # Update category counts
+                        for category, count in category_counts.items():
+                            if category in splitter._att_dist_per_class[class_key]:
+                                splitter._att_dist_per_class[class_key][category] += count
+                            else:
+                                splitter._att_dist_per_class[class_key][category] = count
+                
+                # Update unique values set
+                if 'unique_values' in nominal_data and hasattr(splitter, '_att_values'):
+                    for value in nominal_data['unique_values']:
+                        splitter._att_values.add(value)
+                
+                # Update total weight
+                if 'total_weight' in nominal_data and hasattr(splitter, '_total_weight_observed'):
+                    splitter._total_weight_observed += nominal_data['total_weight']
+        
+        return True
+    
+    def _apply_naive_bayes_update(self, node, update_data):
+        """Apply Naive Bayes specific updates (correctness weights, etc.)."""
+        
+        # Update Naive Bayes correctness weights
+        if 'mc_correct_weight' in update_data:
+            if hasattr(node, '_mc_correct_weight'):
+                node._mc_correct_weight = update_data['mc_correct_weight']
+            else:
+                node._mc_correct_weight = update_data['mc_correct_weight']
+        
+        if 'nb_correct_weight' in update_data:
+            if hasattr(node, '_nb_correct_weight'):
+                node._nb_correct_weight = update_data['nb_correct_weight']
+            else:
+                node._nb_correct_weight = update_data['nb_correct_weight']
+        
+        return True
+    
+    def _apply_complete_node_update(self, node, update_data):
+        """Apply a complete node state update (all data at once)."""
+        
+        # Apply all update types in sequence
+        success = True
+        
+        if 'leaf_stats' in update_data:
+            success &= self._apply_leaf_stats_update(node, update_data['leaf_stats'])
+        
+        if 'splitter_data' in update_data:
+            success &= self._apply_splitter_data_update(node, update_data['splitter_data'])
+        
+        if 'naive_bayes_data' in update_data:
+            success &= self._apply_naive_bayes_update(node, update_data['naive_bayes_data'])
+        
+        return success
+    
+    def _apply_incremental_stats_update(self, node, update_data):
+        """Apply incremental statistics updates (like single instance learning)."""
+        
+        # This simulates learning from a single instance received from distributed system
+        if 'instance' in update_data and 'class_label' in update_data:
+            x = update_data['instance']
+            y = update_data['class_label']
+            w = update_data.get('weight', 1.0)
+            
+            # Apply the learning directly to the node
+            node.learn_one(x, y, w=w, tree=self)
+            
+            return True
+        
+        return False
+    
+    def create_update_payload(self, node_id, update_type='complete_node'):
+        """Create an update payload for a specific node that can be sent to other distributed processes.
+        
+        This method extracts the current state of a node and packages it for distribution.
+        
+        Parameters
+        ----------
+        node_id : int
+            The ID of the node to create payload for
+        update_type : str
+            Type of update payload to create
+        
+        Returns
+        -------
+        dict or None
+            Update payload dictionary, or None if node not found
+        """
+        node = self.get_node_by_id(node_id)
+        if node is None:
+            return None
+        
+        payload = {
+            'node_id': node_id,
+            'update_type': update_type,
+            'timestamp': __import__('time').time(),
+            'source_tree_id': id(self),
+            'data': {}
+        }
+        
+        if update_type in ['complete_node', 'leaf_stats']:
+            # Add leaf statistics
+            payload['data']['leaf_stats'] = {
+                'stats': dict(getattr(node, 'stats', {})),
+                'total_weight': getattr(node, 'total_weight', 0),
+            }
+        
+        if update_type in ['complete_node', 'splitter_data']:
+            # Add splitter data
+            payload['data']['splitter_data'] = {
+                'splitters': self._extract_splitter_data_for_callback(node)
+            }
+        
+        if update_type in ['complete_node', 'naive_bayes_data']:
+            # Add Naive Bayes data
+            payload['data']['naive_bayes_data'] = {
+                'mc_correct_weight': getattr(node, '_mc_correct_weight', 0),
+                'nb_correct_weight': getattr(node, '_nb_correct_weight', 0),
+            }
+        
+        return payload
+    
+    def apply_split_event(self, split_data):
+        """Apply a split event to reconstruct tree structure from distributed training.
+        
+        This method allows an inference process to reconstruct the tree structure
+        by applying split events received from a distributed training process.
+        
+        Parameters
+        ----------
+        split_data : dict
+            Dictionary containing split event information with the following structure:
+            {
+                'original_leaf_id': int,
+                'split_node': {
+                    'node_id': int,
+                    'node_type': str,
+                    'branch_params': dict,
+                    'stats': dict,
+                    'depth': int
+                },
+                'new_leaves': [
+                    {
+                        'node_id': int,
+                        'stats': dict,
+                        'depth': int
+                    },
+                    ...
+                ]
+            }
+        
+        Returns
+        -------
+        bool
+            True if split event was successfully applied, False otherwise
+        """
+        original_leaf_id = split_data['original_leaf_id']
+        split_node_info = split_data['split_node']
+        new_leaves_info = split_data['new_leaves']
+        
+        try:
+            # Create new leaf children FIRST
+            new_leaves = []
+            for leaf_info in new_leaves_info:
+                leaf = self._create_leaf_from_info(leaf_info)
+                new_leaves.append(leaf)
+                
+            # Create the split node with children
+            # Note: The children are attached during construction (left/right params)
+            split_node = self._create_split_node(split_node_info, new_leaves)
+            
+            # Replace the original leaf with the new split node
+            if self._root is None or original_leaf_id == 0:
+                # Root split case
+                self._root = split_node
+            else:
+                # Non-root split: find parent and replace child
+                parent_node, child_index = self._find_parent_and_index(original_leaf_id)
+                
+                if parent_node is not None:
+                    # Replace the child at the found index
+                    parent_node.children[child_index] = split_node
+                else:
+                    raise RuntimeError(f"Could not find parent for leaf ID {original_leaf_id}")
+            
+            # Remove the original leaf from registry (it's being replaced)
+            if original_leaf_id in self._node_registry:
+                old_leaf = self._node_registry.pop(original_leaf_id)
+            
+            # Register new nodes in the model's node registry
+            # This assigns node_id attributes and adds to registry for O(1) lookup
+            self._register_node(split_node, split_node_info['node_id'])
+            for leaf, leaf_info in zip(new_leaves, new_leaves_info):
+                self._register_node(leaf, leaf_info['node_id'])
+            
+            return True
+            
+        except Exception as e:
+            raise RuntimeError(f"Error applying split event: {e}") from e
+    
+    def _create_leaf_from_info(self, leaf_info):
+        """Create a leaf node from leaf information.
+        
+        Parameters
+        ----------
+        leaf_info : dict
+            Dictionary containing leaf information:
+            {
+                'node_id': int,
+                'stats': dict,
+                'depth': int
+            }
+        
+        Returns
+        -------
+        HTLeaf
+            Created leaf node (type depends on leaf_prediction setting)
+        """
+        stats = {int(k): v for k, v in leaf_info['stats'].items()}
+        depth = leaf_info.get('depth', 0)
+        
+        # Create leaf node based on leaf_prediction setting
+        # CRITICAL: Use self.splitter template, NOT None!
+        # This matches what _new_leaf() does
+        if self._leaf_prediction == self._MAJORITY_CLASS:
+            leaf = LeafMajorityClass(stats=stats, depth=depth, splitter=self.splitter)
+        elif self._leaf_prediction == self._NAIVE_BAYES:
+            leaf = LeafNaiveBayes(stats=stats, depth=depth, splitter=self.splitter)
+        else:  # Naive Bayes Adaptive (default)
+            leaf = LeafNaiveBayesAdaptive(stats=stats, depth=depth, splitter=self.splitter)
+
+        return leaf
+    
+    def _create_split_node(self, split_node_info, children):
+        """Create a split node from split event data with children.
+        
+        Parameters
+        ----------
+        split_node_info : dict
+            Dictionary containing split node information:
+            {
+                'node_id': int,
+                'node_type': str,
+                'branch_params': dict,
+                'stats': dict,
+                'depth': int
+            }
+        children : list
+            List of child nodes (leaves or branches)
+        
+        Returns
+        -------
+        DTBranch
+            Created branch node (type depends on node_type)
+        """
+        from .nodes.branch import NumericBinaryBranch, NominalBinaryBranch
+        from .nodes.branch import NumericMultiwayBranch, NominalMultiwayBranch
+        
+        node_type = split_node_info['node_type']
+        branch_params = split_node_info['branch_params']
+        stats = split_node_info.get('stats', {})
+        depth = split_node_info.get('depth', 0)
+        
+        # Convert stats from string keys to int
+        stats_dict = {int(k): v for k, v in stats.items()} if stats else {}
+        
+        if node_type == 'NumericBinaryBranch':
+            node = NumericBinaryBranch(
+                stats=stats_dict,
+                feature=branch_params['feature'],
+                threshold=branch_params['threshold'],
+                depth=depth,
+                left=children[0],
+                right=children[1]
+            )
+        elif node_type == 'NominalBinaryBranch':
+            node = NominalBinaryBranch(
+                stats=stats_dict,
+                feature=branch_params['feature'],
+                value=branch_params['value'],
+                depth=depth,
+                left=children[0],
+                right=children[1]
+            )
+        elif node_type == 'NumericMultiwayBranch':
+            node = NumericMultiwayBranch(
+                stats=stats_dict,
+                feature=branch_params['feature'],
+                depth=depth,
+                *children  # Multiway branches accept variable children
+            )
+        elif node_type == 'NominalMultiwayBranch':
+            node = NominalMultiwayBranch(
+                stats=stats_dict,
+                feature=branch_params['feature'],
+                depth=depth,
+                *children
+            )
+        else:
+            raise ValueError(f"Unknown split node type: {node_type}")
+        
+        return node
+    
+    def _find_parent_and_index(self, target_node_id):
+        """Find the parent node and child index for a given node ID.
+        
+        This method traverses the tree to find which parent node contains
+        the target node as a child, and at which index.
+        
+        Parameters
+        ----------
+        target_node_id : int
+            The ID of the node to find the parent for
+        
+        Returns
+        -------
+        tuple (DTBranch, int) or (None, None)
+            The parent node and the index of the target node in parent's children,
+            or (None, None) if not found
+        """
+        if self._root is None:
+            return None, None
+        
+        # If target is root, it has no parent
+        if hasattr(self._root, 'node_id') and self._root.node_id == target_node_id:
+            return None, None
+        
+        # BFS traversal to find the parent
+        from collections import deque
+        queue = deque([self._root])
+        
+        while queue:
+            current = queue.popleft()
+            
+            # Check if this node is a branch (has children)
+            if hasattr(current, 'children') and current.children:
+                # Check each child
+                for idx, child in enumerate(current.children):
+                    # Found it!
+                    if hasattr(child, 'node_id') and child.node_id == target_node_id:
+                        return current, idx
+                    
+                    # Add child to queue for further traversal
+                    if hasattr(child, 'children'):
+                        queue.append(child)
+        
+        # Not found
+        return None, None
