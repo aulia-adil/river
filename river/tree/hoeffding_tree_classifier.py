@@ -1,4 +1,6 @@
 from __future__ import annotations
+# Silence debugging prints inside HoeffdingTreeClassifier for high-speed execution
+print = lambda *args, **kwargs: None
 
 from river import base
 
